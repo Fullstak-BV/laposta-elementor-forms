@@ -2,6 +2,7 @@
 Contributors:
 Donate link: https://fullstak.nl//
 Tags: laposta, elementor, forms
+Version: 1.0.0
 Requires at least: 3.0.1
 Tested up to: 3.4
 Stable tag: 4.3
@@ -23,5 +24,5 @@ Simple plugin that let's you use Elementor forms to register visitors to your La
 
 == Changelog ==
 
-= 1.0 =
+= 1.0.0 =
 * Initial release
