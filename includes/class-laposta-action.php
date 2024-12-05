@@ -59,37 +59,49 @@
 			);
 			
 			$widget->add_control(
-				'apikey',
+				'laposta_api_key',
 				[
 					'label' => __( 'API Key', 'laposta-elementor-forms' ),
 					'type' => \Elementor\Controls_Manager::TEXT,
 					'label_block' => true,
-					'separator' => 'before',
 					'description' => __( '', 'laposta-elementor-forms' ),
 				]
 			);
 			$widget->add_control(
 				'listid',
 				[
-					'label' => __( 'Lijst ID', 'laposta-elementor-forms' ),
-					'type' => \Elementor\Controls_Manager::TEXT,
-					'label_block' => true,
-					'separator' => 'before',
-					'description' => __( '', 'laposta-elementor-forms' ),
-				]
-			);
-			
-			$widget->add_control(
-				'laposta_email',
-				[
-					'label' => __( 'E-mailadres veld', 'laposta-elementor-forms' ),
+					'label' => __( 'List', 'laposta-elementor-forms' ),
 					'type' => \Elementor\Controls_Manager::SELECT,
 					'label_block' => true,
-					'separator' => 'before',
-					'description' => __( 'Welk veld in je formulier is het e-mailadres?', 'laposta-elementor-forms' ),
-					'options' => []
+					'description' => __( '', 'laposta-elementor-forms' ),
+                    'options' => []
 				]
 			);
+            $widget->add_control(
+                'laposta_api_fields_heading',
+                [
+                    'label' => esc_html__( 'API fields mapping', 'laposta-elementor-forms' ),
+                    'type' => \Elementor\Controls_Manager::HEADING,
+                    'separator' => 'before'
+                ]
+            );
+
+            $widget->add_control(
+                'laposta_api_fields',
+                [
+                    'label' => esc_html__( '', 'laposta-elementor-forms' ),
+                    'type' => \Elementor\Controls_Manager::RAW_HTML,
+                    'raw' => '<div class="elementor-control-field-description">Map the form fields to the Laposta fields.</div>'
+                ]
+            );
+
+            $widget->add_control(
+                'hr',
+                [
+                    'type' => \Elementor\Controls_Manager::DIVIDER,
+                ]
+            );
+
 			$widget->end_controls_section();
 		}
 		
@@ -105,44 +117,48 @@
 		 */
 		public function run( $record, $ajax_handler ) {
 			$settings = $record->get( 'form_settings' );
-			$base = 'https://api.laposta.nl/';
 			$path = 'v2/member';
 			
-			if ( empty( $settings['apikey'] ) || empty( $settings['listid'] ) || empty( $settings['laposta_email'] ) ) {
+			if ( empty( $settings['laposta_api_key'] ) || empty( $settings['listid'] ) ) {
 				return;
 			}
-			
-			$ch = curl_init($base.$path.'?list_id='.$settings['listid']);
 			
 			$raw_fields = $record->get( 'fields' );
 			$data = [
 				'list_id' => $settings['listid'],
 				'ip' => \ElementorPro\Core\Utils::get_client_ip(),
-				'email' => $raw_fields[$settings['laposta_email']]['value'],
-				'custom_fields' => [], // @TODO: add custom fields support
+				'email' => '',
+				'custom_fields' => [],
 				'source_url' => get_home_url()
 			];
-			
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-			curl_setopt($ch, CURLOPT_USERPWD, $settings['apikey'] . ':');
-			curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-			$response = json_decode(curl_exec($ch));
-			curl_close($ch);
-			
-			if (isset($response->error->code)) {
-				switch($response->error->code):
+
+            //$ajax_handler->add_error_message(print_r($settings, true));
+            foreach ($settings as $key => $field) {
+                if (stripos($key, '_laposta_field_') === 0) {
+                    $custom_field_name = substr($key, strlen('_laposta_field_'));
+                    if($custom_field_name==='null') continue;
+                    if($custom_field_name==='email') {
+                        $data['email'] = $raw_fields[$field]['value'];
+                        continue;
+                    }
+                    $data['custom_fields'][$custom_field_name] = $raw_fields[$field]['value'];
+                }
+            }
+            $response = laposta_api_call($settings['laposta_api_key'], $path, 'POST', $data);
+
+			if (isset($response['error']['code'])) {
+				switch($response['error']['code']):
 					case 203:
-						$ajax_handler->add_error_message('We konden geen lijst vinden om je voor in te schrijven.');
+						$ajax_handler->add_error_message(__('This email address is already subscribed.', 'laposta-elementor-forms'));
 						break;
 					case 204:
-						$ajax_handler->add_error_message('Dit e-mailadres is al ingeschreven.');
+						$ajax_handler->add_error_message(__('This email address is already subscribed.', 'laposta-elementor-forms'));
 						break;
 					case 208:
-						$ajax_handler->add_error_message('Dit e-mailadres is ongeldig.');
+						$ajax_handler->add_error_message(__('This email address is already subscribed.', 'laposta-elementor-forms'));
 						break;
 					default:
-						$ajax_handler->add_error_message('Er is iets misgegaan. Probeer het later nog eens.');
+						$ajax_handler->add_error_message(__('An error occurred while subscribing.', 'laposta-elementor-forms'));
 						break;
 				endswitch;
 			}
