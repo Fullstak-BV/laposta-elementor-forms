@@ -10,7 +10,7 @@
  * Plugin Name:       Laposta Elementor Forms Integration
  * Plugin URI:        https://fullstak.nl/
  * Description:       Simple plugin that let's you use Elementor forms to register visitors to your Laposta relation list.
- * Version:           2.0.0
+ * Version:           2.1.0
  * Author:            Bram Hammer
  * Author URI:        https://fullstak.nl//
  * License:           GPL-2.0+
@@ -58,7 +58,7 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
          *
          * @var string
          */
-        private $version = '2.0.0';
+        private $version = '2.1.0';
 
         /**
          * @var bool Debug mode
@@ -212,6 +212,22 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
                 true
             );
 
+            wp_localize_script(
+                'laposta-elementor-forms-editor',
+                'lapostaElementorForms',
+                [
+                    'debug' => LAPOSTA_DEBUG,
+                    'mappingLabels' => [
+                        'formOption' => __( 'Formulier optie', 'laposta-elementor-forms' ),
+                        'lapostaOption' => __( 'Laposta optie', 'laposta-elementor-forms' ),
+                        'selectPrompt' => __( 'Kies...', 'laposta-elementor-forms' ),
+                        'noFormOptions' => __( 'Selecteer een formulier veld met opties om een mapping te maken.', 'laposta-elementor-forms' ),
+                        'noLapostaOptions' => __( 'Dit Laposta veld heeft geen opties.', 'laposta-elementor-forms' ),
+                        'noMappingNeeded' => __( 'Geen extra mapping nodig voor dit veld.', 'laposta-elementor-forms' ),
+                    ],
+                ]
+            );
+
             // Enqueue the script.
             wp_enqueue_script( 'laposta-elementor-forms-editor' );
         }
@@ -227,7 +243,16 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
         public function admin_notice_missing_main_plugin() {
 
             /* translators: %s Elementor install/activate URL link. */
-            echo '<div class="notice notice-warning is-dismissible"><p>' . sprintf( __( '<strong>Laposta Elementor Forms</strong> requires <a href="%s" target="_blank"><strong>Elementor PRO</strong></a> to be installed and activated.', 'laposta-elementor-forms' ), admin_url() . 'plugin-install.php' ) . '</p></div>';
+            $allowed_tags = [
+                'strong' => [],
+                'a'      => [
+                    'href'   => [],
+                    'target' => [],
+                    'rel'    => [],
+                ],
+            ];
+
+            echo '<div class="notice notice-warning is-dismissible"><p>' . sprintf( wp_kses( __( '<strong>Laposta Elementor Forms</strong> requires <a href="%s" target="_blank"><strong>Elementor PRO</strong></a> to be installed and activated.', 'laposta-elementor-forms' ), $allowed_tags ), admin_url() . 'plugin-install.php' ) . '</p></div>';
 
         }
 
@@ -241,7 +266,11 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
          */
         public function admin_notice_required_elementor_version() {
             /* translators: %s Elementor required version. */
-            echo '<div class="notice notice-warning is-dismissible"><p>' . sprintf( __( '<strong>Laposta Elementor Forms</strong> requires <strong>Elementor</strong> version %s or greater.', 'laposta-elementor-forms' ), self::$require_elementor_version ) . '</p></div>';
+            $allowed_tags = [
+                'strong' => [],
+            ];
+
+            echo '<div class="notice notice-warning is-dismissible"><p>' . sprintf( wp_kses( __( '<strong>Laposta Elementor Forms</strong> requires <strong>Elementor</strong> version %s or greater.', 'laposta-elementor-forms' ), $allowed_tags ), self::$require_elementor_version ) . '</p></div>';
         }
 
         /**
@@ -353,16 +382,55 @@ add_action('wp_ajax_fetch_laposta_list_fields', 'fetch_laposta_list_fields');
 add_action('wp_ajax_nopriv_fetch_laposta_list_fields', 'fetch_laposta_list_fields');
 
 function fetch_laposta_list_fields() {
-    $api_key = sanitize_text_field($_POST['api_key']);
-    $list_id = sanitize_text_field($_POST['list_id']);
-
-    $path = 'v2/field';
-    $get_list = laposta_api_call($api_key, $path . '?list_id=' . $list_id);
-
-    if (isset($get_list['data'])) {
-        wp_send_json_success($get_list['data']);
-    } else {
-        wp_send_json_error('No fields found.');
+    if ( ! isset( $_POST['api_key'], $_POST['list_id'] ) ) {
+        wp_send_json_error(
+            [ 'message' => __( 'Missing Laposta request parameters.', 'laposta-elementor-forms' ) ],
+            400
+        );
     }
-}
 
+    $api_key = sanitize_text_field( wp_unslash( $_POST['api_key'] ) );
+    $list_id = sanitize_text_field( wp_unslash( $_POST['list_id'] ) );
+
+    if ( '' === $api_key || '' === $list_id ) {
+        wp_send_json_error(
+            [ 'message' => __( 'Invalid Laposta request parameters.', 'laposta-elementor-forms' ) ],
+            400
+        );
+    }
+
+    $path      = 'v2/field';
+    $endpoint  = $path . '?list_id=' . rawurlencode( $list_id );
+    $response  = laposta_api_call( $api_key, $endpoint );
+
+    if ( is_wp_error( $response ) ) {
+        if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+            error_log( sprintf( '[Laposta Elementor Forms] fetch_laposta_list_fields transport error: %s', $response->get_error_message() ) );
+        }
+
+        wp_send_json_error(
+            [ 'message' => __( 'Connectivity issue: unable to reach Laposta right now.', 'laposta-elementor-forms' ) ],
+            500
+        );
+    }
+
+    if ( isset( $response['data'] ) ) {
+        wp_send_json_success( $response['data'] );
+    }
+
+    $default_message = __( 'Unable to fetch Laposta fields for the selected list.', 'laposta-elementor-forms' );
+    $error_message   = $default_message;
+
+    if ( isset( $response['error']['message'] ) && '' !== $response['error']['message'] ) {
+        $error_message = sanitize_text_field( $response['error']['message'] );
+    }
+
+    if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+        error_log( sprintf( '[Laposta Elementor Forms] fetch_laposta_list_fields error: %s', wp_json_encode( $response ) ) );
+    }
+
+    wp_send_json_error(
+        [ 'message' => $error_message ],
+        500
+    );
+}

@@ -3,6 +3,7 @@
 	if ( ! defined( 'ABSPATH' ) ) {
 		exit; // Exit if accessed directly.
 	}
+
 	
 	/**
 	 * Elementor form laposta action.
@@ -132,20 +133,30 @@
 				'source_url' => get_home_url()
 			];
 
-            //$ajax_handler->add_error_message(print_r($settings, true));
+
             foreach ($settings as $key => $field) {
                 if (stripos($key, '_laposta_field_') === 0) {
                     $custom_field_name = substr($key, strlen('_laposta_field_'));
                     if($custom_field_name==='null') continue;
-                    if($custom_field_name==='email') {
-                        $data['email'] = $raw_fields[$field]['value'];
+
+                    $field_value = $this->get_submitted_field_value($raw_fields, $field);
+                    if (null === $field_value) {
                         continue;
                     }
-                    $data['custom_fields'][$custom_field_name] = $raw_fields[$field]['value'];
+
+                    if($custom_field_name==='email') {
+                        $data['email'] = $field_value;
+                        continue;
+                    }
+                    $data['custom_fields'][$custom_field_name] = $this->map_field_values(
+                        $field_value,
+                        $this->parse_field_mapping(
+                            isset($settings['_laposta_field_mapping_'.$custom_field_name]) ? $settings['_laposta_field_mapping_'.$custom_field_name] : ''
+                        )
+                    );
                 }
             }
             $response = laposta_api_call($settings['laposta_api_key'], $path, 'POST', $data);
-
 			if (isset($response['error']['code'])) {
 				switch($response['error']['code']):
 					case 203:
@@ -174,4 +185,119 @@
 		 * @param array $element
 		 */
 		public function on_export($element) {}
+
+		/**
+		 * Retrieve a submitted field value.
+		 *
+		 * Uses raw checkbox values when present to support multiple selections.
+		 *
+		 * @param array  $raw_fields
+		 * @param string $field_key
+		 * @return mixed|null
+		 */
+		private function get_submitted_field_value($raw_fields, $field_key) {
+			if (empty($field_key) || !isset($raw_fields[$field_key])) {
+				return null;
+			}
+
+			$field_data = $raw_fields[$field_key];
+
+			if (isset($field_data['raw_value'])) {
+				$raw_value = $field_data['raw_value'];
+				if (is_array($raw_value)) {
+					return $raw_value;
+				}
+
+				if (!isset($field_data['value'])) {
+					return $raw_value;
+				}
+			}
+
+			if (isset($field_data['value'])) {
+				return $field_data['value'];
+			}
+
+			return null;
+		}
+
+		/**
+		 * Convert saved mapping text into an associative array.
+		 *
+		 * @param string $mapping_text
+		 * @return array
+		 */
+		private function parse_field_mapping($mapping_text) {
+			if (empty($mapping_text)) {
+				return [];
+			}
+
+			if (is_array($mapping_text)) {
+				return $mapping_text;
+			}
+
+			if (is_string($mapping_text)) {
+				$trimmed = trim($mapping_text);
+				if ('' === $trimmed) {
+					return [];
+				}
+
+				$decoded = json_decode($trimmed, true);
+				if (JSON_ERROR_NONE === json_last_error() && is_array($decoded)) {
+					return $decoded;
+				}
+
+				$lines = preg_split('/\r\n|\r|\n/', $trimmed);
+				$mapping = [];
+
+				foreach ($lines as $line) {
+					$line = trim($line);
+					if ('' === $line) {
+						continue;
+					}
+
+					if (preg_match('/\s*(.+?)\s*(=>|=|:)\s*(.*)$/', $line, $matches)) {
+						$source = trim($matches[1]);
+						$target = trim($matches[3]);
+						if ('' === $source) {
+							continue;
+						}
+						$mapping[$source] = $target;
+					}
+				}
+
+				return $mapping;
+			}
+
+			return [];
+		}
+
+		/**
+		 * Apply mapping to submitted values.
+		 *
+		 * @param mixed $value
+		 * @param array $mapping
+		 * @return mixed
+		 */
+        private function map_field_values($value, $mapping) {
+            if (empty($mapping)) {
+                return $value;
+            }
+
+            $apply_mapping = function ($item) use ($mapping) {
+                if (is_scalar($item)) {
+                    $scalar = (string) $item;
+                    if (array_key_exists($scalar, $mapping)) {
+                        return $mapping[$scalar];
+                    }
+                }
+
+                return $item;
+            };
+
+            if (is_array($value)) {
+                return array_map($apply_mapping, $value);
+            }
+
+            return $apply_mapping($value);
+        }
 	}
