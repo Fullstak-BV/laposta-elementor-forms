@@ -21,27 +21,67 @@ window.addEventListener("elementor:loaded", () => {
         args.unshift('[Laposta]');
         console.error.apply(console, args);
     };
-	const text = {
-		formOption: labels.formOption || 'Form field option',
-		lapostaOption: labels.lapostaOption || 'Laposta option',
-		selectPrompt: labels.selectPrompt || 'Select...',
-		noFormOptions: labels.noFormOptions || 'Selecteer een formulier veld met opties om een mapping te maken.',
-		noLapostaOptions: labels.noLapostaOptions || 'Dit Laposta veld heeft geen opties.',
-		noMappingNeeded: labels.noMappingNeeded || 'Geen extra mapping nodig voor dit veld.'
-	};
+    const text = {
+        formOption: labels.formOption || 'Form field option',
+        lapostaOption: labels.lapostaOption || 'Laposta option',
+        selectPrompt: labels.selectPrompt || 'Select...',
+        noFormOptions: labels.noFormOptions || 'Selecteer een formulier veld met opties om een mapping te maken.',
+        noLapostaOptions: labels.noLapostaOptions || 'Dit Laposta veld heeft geen opties.',
+        noMappingNeeded: labels.noMappingNeeded || 'Geen extra mapping nodig voor dit veld.',
+        appendLabel: labels.appendLabel || 'Append selections to existing subscriber (upsert)',
+        appendHelp: labels.appendHelp || '',
+        loadingLists: labels.loadingLists || 'Loading…',
+        selectBoard: labels.selectBoard || 'Select a Board',
+        listFetchError: labels.listFetchError || 'Failed to fetch boards. Please check your API key.',
+        fieldsFetchError: labels.fieldsFetchError || 'Failed to fetch Laposta fields.',
+        listsErrorTitle: labels.listsErrorTitle || 'No Laposta lists found.',
+        fieldsErrorTitle: labels.fieldsErrorTitle || 'Unable to fetch Laposta fields for the selected list.'
+    };
 
-	const getResponseMessage = function (payload, fallback) {
-		if (payload && payload.message) {
-			return payload.message;
-		}
-		if (payload && payload.data && payload.data.message) {
-			return payload.data.message;
-		}
-		if (payload && payload.responseJSON && payload.responseJSON.data && payload.responseJSON.data.message) {
-			return payload.responseJSON.data.message;
-		}
-		return fallback;
-	};
+    const bounceUpsertControl = function () {
+        const switchEl = editor.$el.find('.elementor-control-upsert .elementor-switch');
+        if (switchEl && switchEl.length) {
+            const nativeSwitch = switchEl.get(0);
+            if (nativeSwitch && nativeSwitch.click) {
+                nativeSwitch.click();
+                setTimeout(() => {
+                    nativeSwitch.click();
+                    if (settingsModel && settingsModel.trigger) {
+                        settingsModel.trigger('change');
+                    }
+                }, 0);
+                return;
+            }
+        }
+        if (settingsModel && settingsModel.trigger) {
+            settingsModel.trigger('change');
+        }
+    };
+
+    const getResponseMessage = function (payload, fallback) {
+        if (payload && payload.message) {
+            return payload.message;
+        }
+        if (payload && typeof payload.data === 'string') {
+            return payload.data;
+        }
+        if (payload && payload.data && payload.data.message) {
+            return payload.data.message;
+        }
+        if (payload && payload.responseJSON) {
+            const responseJSON = payload.responseJSON;
+            if (responseJSON.message) {
+                return responseJSON.message;
+            }
+            if (typeof responseJSON.data === 'string') {
+                return responseJSON.data;
+            }
+            if (responseJSON.data && responseJSON.data.message) {
+                return responseJSON.data.message;
+            }
+        }
+        return fallback;
+    };
 
     let mappingStylesInjected = false;
 
@@ -152,7 +192,7 @@ window.addEventListener("elementor:loaded", () => {
         }
         debugError("Unknown fieldOptions format", fieldOptions);
         return [];
-    }
+    };
 
     const getFormFieldOptions = function (customId) {
         const formFieldModel = getFormFieldModel(customId);
@@ -273,28 +313,63 @@ window.addEventListener("elementor:loaded", () => {
             '.laposta-mapping-table{display:flex;flex-direction:column;gap:6px;}' +
             '.laposta-mapping-header,.laposta-mapping-row{display:flex;gap:8px;align-items:center;}' +
             '.laposta-mapping-header span{font-weight:600;flex:1;}' +
-            '.laposta-mapping-row select{flex:1;min-height:32px;}';
+            '.laposta-mapping-row select{flex:1;min-height:32px;}' +
+            '.laposta-mapping-append{margin-top:8px;display:flex;align-items:center;gap:6px;}' +
+            '.laposta-mapping-append input{margin:0;}' +
+            '.laposta-mapping-append-help{margin:4px 0 0;font-size:12px;color:#666;}';
         document.head.appendChild(styleElement);
     };
 
     const ensureMappingContainer = function (fieldKey) {
         const control = fieldControls[fieldKey];
-        if (!control || !control.mappingInput) {
+        if (!control || !control.mappingControlName) {
+            return null;
+        }
+        const mappingControlName = control.mappingControlName;
+        const mappingInputView = control.mappingInput ? editor.children.findByModelCid(control.mappingInput.cid) : null;
+        const selector = '.elementor-control.elementor-control-' + mappingControlName;
+        let mappingControlEl = mappingInputView ? mappingInputView.$el : editor.$el.find(selector).first();
+
+        if (!mappingControlEl || !mappingControlEl.length) {
+            const existingWrapper = editor.$el.find('.laposta-mapping-wrapper[data-laposta-mapping="' + fieldKey + '"]').first();
+            if (existingWrapper.length) {
+                control.container = existingWrapper;
+                return existingWrapper.find('.laposta-mapping-table');
+            }
+
+            if (isDebug) {
+                debugLog('Mapping control element not yet available for', fieldKey);
+            }
             return null;
         }
 
-        const mappingInputView = editor.children.findByModelCid(control.mappingInput.cid);
-        if (!mappingInputView) {
-            return null;
+        const fieldRow = mappingControlEl.find('.elementor-control-field');
+        if (!fieldRow.length) {
+            mappingControlEl = mappingControlEl.wrapInner('<div class="elementor-control-field"></div>').children().first();
         }
 
-        mappingInputView.$el.hide();
+        mappingControlEl.closest('.elementor-control').addClass('laposta-mapping-control-hidden');
+        mappingControlEl.find('.elementor-control-title, .elementor-control-input-wrapper').hide();
 
-        let wrapper = mappingInputView.$el.next('.laposta-mapping-wrapper[data-laposta-mapping="' + fieldKey + '"]');
+        let wrapperParent = mappingControlEl;
+
+        //mappingControlEl.hide();
+
+        let wrapper = wrapperParent.children('.laposta-mapping-wrapper[data-laposta-mapping="' + fieldKey + '"]');
+
         if (!wrapper.length) {
-            wrapper = jQuery('<div class="elementor-control laposta-mapping-wrapper" data-laposta-mapping="' + fieldKey + '"><div class="laposta-mapping-table"></div></div>');
-            mappingInputView.$el.after(wrapper);
-            debugLog('Created mapping wrapper', fieldKey);
+            wrapper = editor.$el.find('.laposta-mapping-wrapper[data-laposta-mapping="' + fieldKey + '"]').first();
+            if (wrapper.length) {
+                wrapperParent.append(wrapper);
+            }
+        }
+
+        if (!wrapper.length) {
+            wrapper = jQuery('<div class="laposta-mapping-wrapper" data-laposta-mapping="' + fieldKey + '"><div class="laposta-mapping-table"></div></div>');
+            wrapperParent.append(wrapper);
+            if (isDebug) {
+                debugLog('Created mapping wrapper', fieldKey);
+            }
         }
 
         control.container = wrapper;
@@ -396,7 +471,34 @@ window.addEventListener("elementor:loaded", () => {
             }
 
             writeMapping(fieldKey, updatedMapping);
+            bounceUpsertControl();
         });
+
+        container.off('change', '.laposta-mapping-append-checkbox');
+        container.find('.laposta-mapping-append').remove();
+        container.find('.laposta-mapping-append-help').remove();
+
+        const appendControlName = control.appendControlName;
+        const upsertValue = settingsModel && settingsModel.get ? settingsModel.get('upsert') : null;
+        const upsertEnabled = upsertValue === undefined || upsertValue === null ? true : upsertValue === 'yes';
+
+        if (control.isMulti && appendControlName && upsertEnabled) {
+            const currentAppendValue = settingsModel.get(appendControlName) || 'no';
+            const appendLabel = escapeHtml(text.appendLabel || 'Append selections to existing subscriber (upsert)');
+            const appendHelp = text.appendHelp ? escapeHtml(text.appendHelp) : '';
+
+            container.append('<label class="laposta-mapping-append"><input type="checkbox" class="laposta-mapping-append-checkbox" data-laposta-field="' + escapeHtml(fieldKey) + '"' + (currentAppendValue === 'yes' ? ' checked' : '') + '> ' + appendLabel + '</label>' + (appendHelp ? '<div class="laposta-mapping-append-help">' + appendHelp + '</div>' : ''));
+
+            container.on('change', '.laposta-mapping-append-checkbox', function () {
+                const checkbox = jQuery(this);
+                const isChecked = checkbox.is(':checked');
+                const newValue = isChecked ? 'yes' : 'no';
+                if (settingsModel.get(appendControlName) !== newValue) {
+                    settingsModel.set(appendControlName, newValue);
+                    bounceUpsertControl();
+                }
+            });
+        }
     };
 
     const renderAllMappingInterfaces = function () {
@@ -421,6 +523,7 @@ window.addEventListener("elementor:loaded", () => {
         }
         if (control.container && control.container.length) {
             control.container.off('change', '.laposta-mapping-select-form');
+            control.container.off('change', '.laposta-mapping-append-checkbox');
             control.container.remove();
         }
         control.container = null;
@@ -453,7 +556,6 @@ window.addEventListener("elementor:loaded", () => {
         debugLog('Attached mapping listeners for', fieldKey);
     };
     const updateFieldControls = function () {
-        //console.log("editor",editor)
         fieldIds = {
             'listid': editor.collection.findIndex(c => {
                 return c.attributes.section === 'section_laposta' && c.attributes.name === 'listid';
@@ -471,7 +573,7 @@ window.addEventListener("elementor:loaded", () => {
 
         const defaultField = {
             id: '',
-            label: 'Select field'
+            label: text.selectPrompt || 'Select field'
         }
         inputFields = _.map(fieldModels, function (model) {
             return {
@@ -534,8 +636,7 @@ window.addEventListener("elementor:loaded", () => {
     // Function to fetch lists from Laposta
     function fetchLists(apiKey) {
         updateInputFieldsList();
-        const listOptions = '<option value="">Loading...</option>';
-        jQuery('select[data-setting="listid"]').html(listOptions);
+        jQuery('select[data-setting="listid"]').html('<option value="">' + escapeHtml(text.loadingLists) + '</option>');
         jQuery.ajax({
             url: ajaxurl,
             method: 'POST',
@@ -545,7 +646,7 @@ window.addEventListener("elementor:loaded", () => {
             },
             success: function (response) {
                 if (!response || response.success === false) {
-                    const message = getResponseMessage(response, 'Failed to fetch boards. Please check your API key.');
+                    const message = getResponseMessage(response, text.listFetchError);
                     if (isDebug) {
                         debugError('Laposta lists endpoint returned an error response', response);
                     }
@@ -557,7 +658,7 @@ window.addEventListener("elementor:loaded", () => {
                 if (isDebug) {
                     debugLog('Fetched Laposta lists', lists);
                 }
-                let listOptions = '<option value="">Select a Board</option>';
+                let listOptions = '<option value="">' + escapeHtml(text.selectBoard) + '</option>';
                 const listID = settingsModel.attributes.listid;
                 let match = false;
                 // Populate lists dropdown
@@ -569,7 +670,6 @@ window.addEventListener("elementor:loaded", () => {
                 jQuery('select[data-setting="listid"]').html(listOptions);
                 // Listen for list selection changes
                 jQuery('select[data-setting="listid"]').off('change').on('change', function () {
-                    //console.log(settingsModel)
                     if (Object.keys(fieldControls).length > 0) {
                         for (let control in fieldControls) {
                             if (!fieldControls[control]) {
@@ -594,7 +694,6 @@ window.addEventListener("elementor:loaded", () => {
 
                     const listId = jQuery(this).val();
                     const apiKey = jQuery('input[data-setting="laposta_api_key"]').val();
-                    //console.log(listId);
                     if (listId && apiKey) {
                         fetchListFields(apiKey, listId);
                     }
@@ -606,8 +705,8 @@ window.addEventListener("elementor:loaded", () => {
                 if (isDebug) {
                     debugError('Failed to fetch Laposta lists', textStatus, errorThrown, jqXHR);
                 }
-                const fallback = 'Failed to fetch boards. Please check your API key.';
-                alert(getResponseMessage(jqXHR, fallback));
+                const message = getResponseMessage(jqXHR, text.listFetchError);
+                alert(message);
             }
         });
     }
@@ -623,7 +722,7 @@ window.addEventListener("elementor:loaded", () => {
             },
             success: function (response) {
                 if (!response || response.success === false) {
-                    const message = getResponseMessage(response, 'Failed to fetch Laposta fields.');
+                    const message = getResponseMessage(response, text.fieldsFetchError);
                     if (isDebug) {
                         debugError('Laposta list fields endpoint returned an error response', response);
                     }
@@ -642,6 +741,8 @@ window.addEventListener("elementor:loaded", () => {
                     const selectControlName = '_laposta_field_' + lapostaFieldKey;
                     const mappingControlName = '_laposta_field_mapping_' + lapostaFieldKey;
                     const lapostaOptions = normalizeLapostaOptions(field);
+                    const isMultiSelect = field.datatype === 'select_multiple' || field.datatype_display === 'checkbox' || field.datatype_display === 'multiselect' || field.datatype === 'checkbox';
+                    const appendControlName = '_laposta_field_append_' + lapostaFieldKey;
                     activeKeys.push(lapostaFieldKey);
                     if (isDebug) {
                         debugLog('Processing Laposta field', lapostaFieldKey, lapostaOptions);
@@ -703,12 +804,40 @@ window.addEventListener("elementor:loaded", () => {
                         mappingInputControl = null;
                     }
 
+                    let appendControl = null;
+                    if (isMultiSelect && lapostaOptions.length) {
+                        appendControl = editor.collection.findWhere({name: appendControlName});
+                        const defaultAppendValue = settingsModel && settingsModel.attributes ? (settingsModel.attributes[appendControlName] || 'no') : 'no';
+                        if (!appendControl) {
+                            editor.collection.push({
+                                name: appendControlName,
+                                label: '',
+                                type: 'hidden',
+                                section: 'section_laposta',
+                                default: defaultAppendValue,
+                                tab: 'content',
+                                condition: {
+                                    'submit_actions': 'laposta'
+                                },
+                            }, {at: lastField + 1});
+                            lastField = editor.collection.findIndex(c => c.attributes.section === 'section_laposta' && c.attributes.name === appendControlName);
+                            appendControl = editor.collection.findWhere({name: appendControlName});
+                        }
+                    } else {
+                        const staleAppend = editor.collection.findWhere({name: appendControlName});
+                        if (staleAppend) {
+                            editor.collection.remove(staleAppend);
+                        }
+                    }
+
                     fieldControls[lapostaFieldKey] = fieldControls[lapostaFieldKey] || {};
                     fieldControls[lapostaFieldKey].select = selectControl;
                     fieldControls[lapostaFieldKey].selectControlName = selectControlName;
                     fieldControls[lapostaFieldKey].mappingInput = mappingInputControl;
                     fieldControls[lapostaFieldKey].mappingControlName = mappingControlName;
                     fieldControls[lapostaFieldKey].lapostaOptions = lapostaOptions;
+                    fieldControls[lapostaFieldKey].isMulti = isMultiSelect && lapostaOptions.length > 0;
+                    fieldControls[lapostaFieldKey].appendControlName = appendControl ? appendControlName : null;
 
                     if (lapostaOptions.length) {
                         attachMappingListeners(lapostaFieldKey);
@@ -726,6 +855,12 @@ window.addEventListener("elementor:loaded", () => {
                         if (fieldControls[fieldKey].mappingInput) {
                             editor.collection.remove(fieldControls[fieldKey].mappingInput);
                         }
+                        if (fieldControls[fieldKey].appendControlName) {
+                            const appendControl = editor.collection.findWhere({name: fieldControls[fieldKey].appendControlName});
+                            if (appendControl) {
+                                editor.collection.remove(appendControl);
+                            }
+                        }
                         delete fieldControls[fieldKey];
                         if (isDebug) {
                             debugLog('Removed stale Laposta field mapping', fieldKey);
@@ -739,8 +874,8 @@ window.addEventListener("elementor:loaded", () => {
                 if (isDebug) {
                     debugError('Failed to fetch Laposta list fields', textStatus, errorThrown, jqXHR);
                 }
-                const fallback = 'Failed to fetch Laposta fields.';
-                alert(getResponseMessage(jqXHR, fallback));
+                const message = getResponseMessage(jqXHR, text.fieldsFetchError);
+                alert(message);
             }
         });
     }
@@ -767,11 +902,12 @@ window.addEventListener("elementor:loaded", () => {
         observer.observe(document.body, {childList: true, subtree: true});
         updateFieldControls();
         settingsModel = editedModel.get('settings');
-        //console.log("settings",settingsModel)
         elementor.stopListening(settingsModel.get('form_fields'), 'change', onFormFieldsChange)
         elementor.listenTo(settingsModel.get('form_fields'), 'change', onFormFieldsChange)
         elementor.stopListening(settingsModel.get('form_fields'), 'remove', onFormFieldsChange)
         elementor.listenTo(settingsModel.get('form_fields'), 'remove', onFormFieldsChange)
+        settingsModel.off('change:upsert', renderAllMappingInterfaces);
+        settingsModel.on('change:upsert', renderAllMappingInterfaces);
         //updateOptions();
     };
     const init = function () {

@@ -3,157 +3,166 @@ msgstr ""
 "Project-Id-Version: laposta-elementor-forms 2.1.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2024-05-30 00:00+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: 2024-05-30 00:00+0000\n"
 "Last-Translator: \n"
-"Language-Team: \n"
+"Language-Team: Dutch\n"
+"Language: nl_NL\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Generator: Codex\n"
 "X-Domain: laposta-elementor-forms\n"
 
 #: includes/class-laposta-action.php:39 includes/class-laposta-action.php:55
 msgid "Laposta"
-msgstr ""
+msgstr "Laposta"
 
 #: includes/class-laposta-action.php:65
 msgid "API Key"
-msgstr ""
+msgstr "API-sleutel"
 
 #: includes/class-laposta-action.php:69
 msgid "Enter the Laposta API key found in your Laposta account settings."
-msgstr ""
+msgstr "Voer de Laposta API-sleutel in die je vindt in de Laposta-accountinstellingen."
 
 #: includes/class-laposta-action.php:74
 msgid "List"
-msgstr ""
+msgstr "Lijst"
 
 #: includes/class-laposta-action.php:78
 msgid "Choose the Laposta list that should receive the submitted form entries."
-msgstr ""
+msgstr "Kies de Laposta-lijst waarin de verzonden formulierinzendingen terecht moeten komen."
 
 #: includes/class-laposta-action.php:86
 msgid "Update existing subscriber (upsert)"
-msgstr ""
+msgstr "Bestaande abonnee bijwerken (upsert)"
 
 #: includes/class-laposta-action.php:88
 msgid "Yes"
-msgstr ""
+msgstr "Ja"
 
 #: includes/class-laposta-action.php:89
 msgid "No"
-msgstr ""
+msgstr "Nee"
 
 #: includes/class-laposta-action.php:92
 msgid "If enabled, an existing subscriber with the same email will be updated instead of causing an error."
-msgstr ""
+msgstr "Indien ingeschakeld wordt een bestaande abonnee met hetzelfde e-mailadres bijgewerkt in plaats van een foutmelding te geven."
 
 #: includes/class-laposta-action.php:98
 msgid "API fields mapping"
-msgstr ""
+msgstr "API-velden koppelen"
 
 #: includes/class-laposta-action.php:107
 msgid "Map the form fields to the Laposta fields."
-msgstr ""
+msgstr "Koppel de formuliervelden aan de Laposta-velden."
 
-#: includes/class-laposta-action.php:229
+#: includes/class-laposta-action.php:219
 msgid "Unable to communicate with Laposta at the moment."
-msgstr ""
+msgstr "Kan momenteel geen verbinding maken met Laposta."
 
-#: includes/class-laposta-action.php:238 includes/class-laposta-action.php:241 includes/class-laposta-action.php:244
+#: includes/class-laposta-action.php:228 includes/class-laposta-action.php:231 includes/class-laposta-action.php:234
 msgid "This email address is already subscribed."
-msgstr ""
+msgstr "Dit e-mailadres is al geabonneerd."
 
-#: includes/class-laposta-action.php:247
+#: includes/class-laposta-action.php:237
 msgid "An error occurred while subscribing."
-msgstr ""
+msgstr "Er is een fout opgetreden tijdens het inschrijven."
 
 #: laposta-elementor-forms.php:216
 msgid "Form option"
-msgstr ""
+msgstr "Formulieroptie"
 
 #: laposta-elementor-forms.php:217
 msgid "Laposta option"
-msgstr ""
+msgstr "Laposta-optie"
 
 #: laposta-elementor-forms.php:218
 msgid "Select…"
-msgstr ""
+msgstr "Selecteer…"
 
 #: laposta-elementor-forms.php:219
 msgid "Select a form field with options to create a mapping."
-msgstr ""
+msgstr "Selecteer een formulier veld met opties om een koppeling te maken."
 
 #: laposta-elementor-forms.php:220
 msgid "This Laposta field has no options."
-msgstr ""
+msgstr "Dit Laposta-veld heeft geen opties."
 
 #: laposta-elementor-forms.php:221
 msgid "No additional mapping needed for this field."
-msgstr ""
+msgstr "Geen extra koppeling nodig voor dit veld."
 
 #: laposta-elementor-forms.php:222
 msgid "Append new selections to existing subscriber (upsert)"
-msgstr ""
+msgstr "Nieuwe selecties toevoegen aan bestaande abonnee (upsert)"
 
 #: laposta-elementor-forms.php:223
 msgid "Leave unchecked to overwrite existing selections when the subscriber already exists."
-msgstr ""
+msgstr "Laat dit uit om bestaande selecties te overschrijven wanneer de abonnee al bestaat."
 
 #: laposta-elementor-forms.php:224
 msgid "Loading…"
-msgstr ""
+msgstr "Bezig met laden…"
 
 #: laposta-elementor-forms.php:225
 msgid "Select a list"
-msgstr ""
+msgstr "Selecteer een lijst"
 
 #: laposta-elementor-forms.php:226
 msgid "Failed to fetch Laposta lists. Please check your API key."
-msgstr ""
+msgstr "Het ophalen van Laposta-lijsten is mislukt. Controleer je API-sleutel."
 
 #: laposta-elementor-forms.php:227
 msgid "Failed to fetch Laposta fields."
-msgstr ""
+msgstr "Het ophalen van Laposta-velden is mislukt."
 
-#: laposta-elementor-forms.php:228
+#: laposta-elementor-forms.php:228 laposta-elementor-forms.php:388
 msgid "No Laposta lists found."
-msgstr ""
+msgstr "Geen Laposta-lijsten gevonden."
 
 #: laposta-elementor-forms.php:229 laposta-elementor-forms.php:454
 msgid "Unable to fetch Laposta fields for the selected list."
-msgstr ""
+msgstr "Kan Laposta-velden voor de geselecteerde lijst niet ophalen."
 
 #: laposta-elementor-forms.php:242
 #, php-format
 msgid "<strong>Laposta Elementor Forms</strong> requires <a href=\"%s\" target=\"_blank\"><strong>Elementor PRO</strong></a> to be installed and activated."
-msgstr ""
+msgstr "<strong>Laposta Elementor Forms</strong> vereist dat <a href=\"%s\" target=\"_blank\"><strong>Elementor PRO</strong></a> is geïnstalleerd en geactiveerd."
 
 #: laposta-elementor-forms.php:266
 #, php-format
 msgid "<strong>Laposta Elementor Forms</strong> requires <strong>Elementor</strong> version %s or greater."
-msgstr ""
-
-#: laposta-elementor-forms.php:388
-msgid "Missing Laposta API key."
-msgstr ""
+msgstr "<strong>Laposta Elementor Forms</strong> vereist <strong>Elementor</strong> versie %s of hoger."
 
 #: laposta-elementor-forms.php:396
 msgid "Invalid Laposta API key."
-msgstr ""
+msgstr "Ongeldige Laposta API-sleutel."
 
 #: laposta-elementor-forms.php:407
 msgid "Connectivity issue: unable to retrieve Laposta lists."
-msgstr ""
+msgstr "Verbindingsprobleem: Laposta-lijsten kunnen niet worden opgehaald."
 
 #: laposta-elementor-forms.php:421
 msgid "Missing Laposta request parameters."
-msgstr ""
+msgstr "Ontbrekende Laposta-parameters."
 
 #: laposta-elementor-forms.php:430
 msgid "Invalid Laposta request parameters."
-msgstr ""
+msgstr "Ongeldige Laposta-parameters."
 
 #: laposta-elementor-forms.php:442
 msgid "Connectivity issue: unable to reach Laposta right now."
-msgstr ""
+msgstr "Verbindingsprobleem: Laposta is momenteel niet bereikbaar."
+#: includes/class-laposta-action.php:229
+msgid "Unable to communicate with Laposta at the moment."
+msgstr "Kan momenteel geen verbinding maken met Laposta."
+#
+#: includes/class-laposta-action.php:238 includes/class-laposta-action.php:241 includes/class-laposta-action.php:244
+msgid "This email address is already subscribed."
+msgstr "Dit e-mailadres is al geabonneerd."
+
+#: includes/class-laposta-action.php:247
+msgid "An error occurred while subscribing."
+msgstr "Er is een fout opgetreden tijdens het inschrijven."

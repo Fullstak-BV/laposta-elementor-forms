@@ -65,7 +65,7 @@
 					'label' => __( 'API Key', 'laposta-elementor-forms' ),
 					'type' => \Elementor\Controls_Manager::TEXT,
 					'label_block' => true,
-					'description' => __( '', 'laposta-elementor-forms' ),
+					'description' => __( 'Enter the Laposta API key found in your Laposta account settings.', 'laposta-elementor-forms' ),
 				]
 			);
 			$widget->add_control(
@@ -74,10 +74,24 @@
 					'label' => __( 'List', 'laposta-elementor-forms' ),
 					'type' => \Elementor\Controls_Manager::SELECT,
 					'label_block' => true,
-					'description' => __( '', 'laposta-elementor-forms' ),
+					'description' => __( 'Choose the Laposta list that should receive the submitted form entries.', 'laposta-elementor-forms' ),
                     'options' => []
 				]
 			);
+
+            // Upsert switch - update existing subscriber if email exists
+            $widget->add_control(
+                'upsert',
+                [
+                    'label' => __( 'Update existing subscriber (upsert)', 'laposta-elementor-forms' ),
+                    'type' => \Elementor\Controls_Manager::SWITCHER,
+                    'label_on' => __( 'Yes', 'laposta-elementor-forms' ),
+                    'label_off' => __( 'No', 'laposta-elementor-forms' ),
+                    'return_value' => 'yes',
+                    'default' => 'yes',
+                    'description' => __( 'If enabled, an existing subscriber with the same email will be updated instead of causing an error.', 'laposta-elementor-forms' ),
+                ]
+            );
             $widget->add_control(
                 'laposta_api_fields_heading',
                 [
@@ -90,9 +104,9 @@
             $widget->add_control(
                 'laposta_api_fields',
                 [
-                    'label' => esc_html__( '', 'laposta-elementor-forms' ),
+                    'label' => '',
                     'type' => \Elementor\Controls_Manager::RAW_HTML,
-                    'raw' => '<div class="elementor-control-field-description">Map the form fields to the Laposta fields.</div>'
+                    'raw' => '<div class="elementor-control-field-description">' . esc_html__( 'Map the form fields to the Laposta fields.', 'laposta-elementor-forms' ) . '</div>'
                 ]
             );
 
@@ -125,6 +139,12 @@
 			}
 			
 			$raw_fields = $record->get( 'fields' );
+			$should_upsert = isset( $settings['upsert'] ) ? ( 'yes' === $settings['upsert'] ) : true;
+			$options = [];
+			if ( $should_upsert ) {
+				$options['upsert'] = true;
+			}
+
 			$data = [
 				'list_id' => $settings['listid'],
 				'ip' => \ElementorPro\Core\Utils::get_client_ip(),
@@ -133,31 +153,76 @@
 				'source_url' => get_home_url()
 			];
 
+			if ( ! empty( $options ) ) {
+				$data['options'] = $options;
+			}
 
-            foreach ($settings as $key => $field) {
-                if (stripos($key, '_laposta_field_') === 0) {
-                    $custom_field_name = substr($key, strlen('_laposta_field_'));
-                    if($custom_field_name==='null') continue;
+			$append_field_values = [];
 
-                    $field_value = $this->get_submitted_field_value($raw_fields, $field);
-                    if (null === $field_value) {
-                        continue;
-                    }
+			foreach ( $settings as $key => $field ) {
+				if ( stripos( $key, '_laposta_field_' ) === 0 ) {
+					$custom_field_name = substr( $key, strlen( '_laposta_field_' ) );
+					if ( 'null' === $custom_field_name ) {
+						continue;
+					}
 
-                    if($custom_field_name==='email') {
-                        $data['email'] = $field_value;
-                        continue;
-                    }
-                    $data['custom_fields'][$custom_field_name] = $this->map_field_values(
-                        $field_value,
-                        $this->parse_field_mapping(
-                            isset($settings['_laposta_field_mapping_'.$custom_field_name]) ? $settings['_laposta_field_mapping_'.$custom_field_name] : ''
-                        )
-                    );
-                }
-            }
-            $response = laposta_api_call($settings['laposta_api_key'], $path, 'POST', $data);
-			if (isset($response['error']['code'])) {
+					$field_value = $this->get_submitted_field_value( $raw_fields, $field );
+					if ( null === $field_value ) {
+						continue;
+					}
+
+					if ( 'email' === $custom_field_name ) {
+						$data['email'] = $field_value;
+						continue;
+					}
+					$data['custom_fields'][ $custom_field_name ] = $this->map_field_values(
+						$field_value,
+						$this->parse_field_mapping(
+							isset( $settings[ '_laposta_field_mapping_' . $custom_field_name ] ) ? $settings[ '_laposta_field_mapping_' . $custom_field_name ] : ''
+						)
+					);
+
+					$append_setting_key   = '_laposta_field_append_' . $custom_field_name;
+					$should_append_field = isset( $settings[ $append_setting_key ] ) && 'yes' === $settings[ $append_setting_key ];
+					if ( $should_append_field ) {
+						$append_field_values[ $custom_field_name ] = (array) $data['custom_fields'][ $custom_field_name ];
+					}
+				}
+			}
+
+			if ( $should_upsert && ! empty( $append_field_values ) && ! empty( $data['email'] ) ) {
+				$member_endpoint = sprintf( 'v2/member/%s?list_id=%s', rawurlencode( $data['email'] ), rawurlencode( $settings['listid'] ) );
+				$existing_member = laposta_api_call( $settings['laposta_api_key'], $member_endpoint );
+				if ( ! is_wp_error( $existing_member ) && ! empty( $existing_member['member']['custom_fields'] ) ) {
+					$existing_custom_fields = $existing_member['member']['custom_fields'];
+					foreach ( $append_field_values as $field_key => $new_values ) {
+						$existing_values = [];
+						if ( isset( $existing_custom_fields[ $field_key ] ) ) {
+							$existing_values = $existing_custom_fields[ $field_key ];
+						}
+						if ( ! is_array( $existing_values ) ) {
+							if ( '' === $existing_values || null === $existing_values ) {
+								$existing_values = [];
+							} else {
+								$existing_values = [ $existing_values ];
+							}
+						}
+						$merged_values = array_values( array_unique( array_merge( $existing_values, (array) $new_values ) ) );
+						$data['custom_fields'][ $field_key ] = $merged_values;
+					}
+				} elseif ( is_wp_error( $existing_member ) && defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+					error_log( sprintf( '[Laposta Elementor Forms] upsert append fetch error: %s', $existing_member->get_error_message() ) );
+				}
+			}
+			$response = laposta_api_call( $settings['laposta_api_key'], $path, 'POST', $data );
+			if ( is_wp_error( $response ) ) {
+				$ajax_handler->add_error_message( __( 'Unable to communicate with Laposta at the moment.', 'laposta-elementor-forms' ) );
+				if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+					error_log( sprintf( '[Laposta Elementor Forms] form submission transport error: %s', $response->get_error_message() ) );
+					}
+					return;
+				}
+				if (isset($response['error']['code'])) {
 				switch($response['error']['code']):
 					case 203:
 						$ajax_handler->add_error_message(__('This email address is already subscribed.', 'laposta-elementor-forms'));

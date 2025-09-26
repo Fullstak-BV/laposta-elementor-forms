@@ -151,7 +151,7 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
          * @return void
          */
         public function lang() {
-            load_plugin_textdomain( 'laposta-elementor-forms', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+			load_plugin_textdomain( 'laposta-elementor-forms', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
         }
 
         /**
@@ -212,24 +212,32 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
                 true
             );
 
+	        // Enqueue the script.
+	        wp_enqueue_script( 'laposta-elementor-forms-editor' );
             wp_localize_script(
                 'laposta-elementor-forms-editor',
                 'lapostaElementorForms',
                 [
                     'debug' => LAPOSTA_DEBUG,
                     'mappingLabels' => [
-                        'formOption' => __( 'Formulier optie', 'laposta-elementor-forms' ),
-                        'lapostaOption' => __( 'Laposta optie', 'laposta-elementor-forms' ),
-                        'selectPrompt' => __( 'Kies...', 'laposta-elementor-forms' ),
-                        'noFormOptions' => __( 'Selecteer een formulier veld met opties om een mapping te maken.', 'laposta-elementor-forms' ),
-                        'noLapostaOptions' => __( 'Dit Laposta veld heeft geen opties.', 'laposta-elementor-forms' ),
-                        'noMappingNeeded' => __( 'Geen extra mapping nodig voor dit veld.', 'laposta-elementor-forms' ),
+                        'formOption' => __( 'Form option', 'laposta-elementor-forms' ),
+                        'lapostaOption' => __( 'Laposta option', 'laposta-elementor-forms' ),
+                        'selectPrompt' => __( 'Select…', 'laposta-elementor-forms' ),
+                        'noFormOptions' => __( 'Select a form field with options to create a mapping.', 'laposta-elementor-forms' ),
+                        'noLapostaOptions' => __( 'This Laposta field has no options.', 'laposta-elementor-forms' ),
+                        'noMappingNeeded' => __( 'No additional mapping needed for this field.', 'laposta-elementor-forms' ),
+                        'appendLabel' => __( 'Append new selections to existing subscriber (upsert)', 'laposta-elementor-forms' ),
+                        'appendHelp' => __( 'Leave unchecked to overwrite existing selections when the subscriber already exists.', 'laposta-elementor-forms' ),
+                        'loadingLists' => __( 'Loading…', 'laposta-elementor-forms' ),
+                        'selectBoard' => __( 'Select a list', 'laposta-elementor-forms' ),
+                        'listFetchError' => __( 'Failed to fetch Laposta lists. Please check your API key.', 'laposta-elementor-forms' ),
+                        'fieldsFetchError' => __( 'Failed to fetch Laposta fields.', 'laposta-elementor-forms' ),
+                        'listsErrorTitle' => __( 'No Laposta lists found.', 'laposta-elementor-forms' ),
+                        'fieldsErrorTitle' => __( 'Unable to fetch Laposta fields for the selected list.', 'laposta-elementor-forms' ),
                     ],
                 ]
             );
 
-            // Enqueue the script.
-            wp_enqueue_script( 'laposta-elementor-forms-editor' );
         }
 
         /**
@@ -331,51 +339,94 @@ laposta_elementor_forms();
 add_action('wp_ajax_fetch_laposta_lists', 'fetch_laposta_lists');
 add_action('wp_ajax_nopriv_fetch_laposta_lists', 'fetch_laposta_lists');
 
-function laposta_api_call($api_key, $path, $method = 'GET', $data = [])
-{
-    $api_key = sanitize_text_field($api_key);
+function laposta_api_call( $api_key, $path, $method = 'GET', $data = [] ) {
+    $api_key = sanitize_text_field( $api_key );
+    $url     = rtrim( LAPOSTA_BASE, '/' ) . '/' . ltrim( $path, '/' );
 
-    if($method === 'POST') {
-        $response = wp_remote_post(LAPOSTA_BASE . $path, [
-            'method' => 'POST',
-            'headers' => [
-                'Authorization' => 'Basic ' . base64_encode("$api_key:"),
-            ],
-            'body' => json_encode($data),
-        ]);
+    $arguments = [
+        'headers' => [
+            'Authorization' => 'Basic ' . base64_encode( sprintf( '%s:', $api_key ) ),
+            'Accept'        => 'application/json',
+        ],
+        'timeout' => 15,
+    ];
+
+    if ( 'POST' === strtoupper( $method ) ) {
+        $arguments['headers']['Content-Type'] = 'application/json; charset=utf-8';
+        $encoded_body                         = wp_json_encode( $data );
+
+        if ( false === $encoded_body ) {
+            return new WP_Error( 'laposta_encode_error', 'Error encoding request body.' );
+        }
+
+        $arguments['body'] = $encoded_body;
+        $response                             = wp_remote_post( $url, $arguments );
     } else {
-        $response = wp_remote_get(LAPOSTA_BASE . $path, [
-            'method' => 'GET',
-            'headers' => [
-                'Authorization' => 'Basic ' . base64_encode("$api_key:"),
-            ],
-            'body' => [],
-        ]);
+        $response = wp_remote_get( $url, $arguments );
     }
 
-    if (is_wp_error($response)) {
-        wp_send_json_error('Error fetching lists: ' . $response->get_error_message());
+    if ( is_wp_error( $response ) ) {
+        return $response;
     }
 
-    try{
-        return json_decode(wp_remote_retrieve_body($response), true);
-    } catch (Exception $e) {
-        wp_send_json_error('Error decoding response: ' . $e->getMessage());
-        exit();
+    $body      = wp_remote_retrieve_body( $response );
+    $decoded   = json_decode( $body, true );
+    $json_error = json_last_error();
+
+    if ( JSON_ERROR_NONE !== $json_error ) {
+        return new WP_Error( 'laposta_invalid_json', sprintf( 'Error decoding response: %s', json_last_error_msg() ) );
     }
+
+    return $decoded;
 }
 
 function fetch_laposta_lists() {
-    $api_key = sanitize_text_field($_POST['api_key']);
-
-    $path = 'v2/list';
-    $get_list = laposta_api_call($api_key, $path);
-
-    if (isset($get_list['data'])) {
-        wp_send_json_success($get_list['data']);
-    } else {
-        wp_send_json_error('No lists found.');
+    if ( ! isset( $_POST['api_key'] ) ) {
+        wp_send_json_error(
+            [ 'message' => __( 'Missing Laposta API key.', 'laposta-elementor-forms' ) ],
+            400
+        );
     }
+
+    $api_key = sanitize_text_field( wp_unslash( $_POST['api_key'] ) );
+
+    if ( '' === $api_key ) {
+        wp_send_json_error(
+            [ 'message' => __( 'Invalid Laposta API key.', 'laposta-elementor-forms' ) ],
+            400
+        );
+    }
+
+    $path      = 'v2/list';
+    $response  = laposta_api_call( $api_key, $path );
+
+    if ( is_wp_error( $response ) ) {
+        if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+            error_log( sprintf( '[Laposta Elementor Forms] fetch_laposta_lists transport error: %s', $response->get_error_message() ) );
+        }
+
+        wp_send_json_error(
+            [ 'message' => __( 'Connectivity issue: unable to retrieve Laposta lists.', 'laposta-elementor-forms' ) ],
+            500
+        );
+    }
+
+    if ( isset( $response['data'] ) ) {
+        wp_send_json_success( $response['data'] );
+    }
+
+    if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+        error_log( sprintf( '[Laposta Elementor Forms] fetch_laposta_lists error: %s', wp_json_encode( $response ) ) );
+    }
+
+    $message = isset( $response['error']['message'] ) && '' !== $response['error']['message']
+        ? sanitize_text_field( $response['error']['message'] )
+        : __( 'No Laposta lists found.', 'laposta-elementor-forms' );
+
+    wp_send_json_error(
+        [ 'message' => $message ],
+        500
+    );
 }
 
 add_action('wp_ajax_fetch_laposta_list_fields', 'fetch_laposta_list_fields');

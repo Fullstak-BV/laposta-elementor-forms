@@ -28,6 +28,8 @@ Simple plugin that let's you use Elementor forms to register visitors to your La
 * Added a visual option-to-option mapping interface for Laposta select and multi-select fields.
 * Stored mappings now support JSON format with graceful upgrades from legacy text syntax.
 * Editor script respects the plugin debug flag to toggle diagnostic logging.
+* Added an Elementor toggle to opt-in to Laposta upsert so existing subscribers can be updated deliberately.
+* When upserting, multi-select fields now offer an "append selections" checkbox to merge choices with existing subscriber preferences.
 
 = 2.0.0 =
 * Fetches Laposta lists
