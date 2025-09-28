@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: laposta-elementor-forms 2.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-05-30 00:00+0000\n"
-"PO-Revision-Date: 2024-05-30 00:00+0000\n"
+"POT-Creation-Date: 2024-09-09 00:00+0000\n"
+"PO-Revision-Date: 2024-09-09 00:00+0000\n"
 "Last-Translator: \n"
 "Language-Team: Dutch\n"
 "Language: nl_NL\n"
@@ -70,59 +70,75 @@ msgstr "Dit e-mailadres is al geabonneerd."
 msgid "An error occurred while subscribing."
 msgstr "Er is een fout opgetreden tijdens het inschrijven."
 
-#: laposta-elementor-forms.php:216
+#: laposta-elementor-forms.php:223
 msgid "Form option"
 msgstr "Formulieroptie"
 
-#: laposta-elementor-forms.php:217
+#: laposta-elementor-forms.php:224
 msgid "Laposta option"
 msgstr "Laposta-optie"
 
-#: laposta-elementor-forms.php:218
+#: laposta-elementor-forms.php:225
 msgid "Select…"
 msgstr "Selecteer…"
 
-#: laposta-elementor-forms.php:219
+#: laposta-elementor-forms.php:226
 msgid "Select a form field with options to create a mapping."
 msgstr "Selecteer een formulier veld met opties om een koppeling te maken."
 
-#: laposta-elementor-forms.php:220
+#: laposta-elementor-forms.php:227
 msgid "This Laposta field has no options."
 msgstr "Dit Laposta-veld heeft geen opties."
 
-#: laposta-elementor-forms.php:221
+#: laposta-elementor-forms.php:228
 msgid "No additional mapping needed for this field."
 msgstr "Geen extra koppeling nodig voor dit veld."
 
-#: laposta-elementor-forms.php:222
+#: laposta-elementor-forms.php:229
 msgid "Append new selections to existing subscriber (upsert)"
 msgstr "Nieuwe selecties toevoegen aan bestaande abonnee (upsert)"
 
-#: laposta-elementor-forms.php:223
+#: laposta-elementor-forms.php:230
 msgid "Leave unchecked to overwrite existing selections when the subscriber already exists."
 msgstr "Laat dit uit om bestaande selecties te overschrijven wanneer de abonnee al bestaat."
 
-#: laposta-elementor-forms.php:224
+#: laposta-elementor-forms.php:231
+msgid "Allow creating new Laposta options"
+msgstr "Nieuwe Laposta-opties toestaan"
+
+#: laposta-elementor-forms.php:232
+msgid "Add hidden field values that are not present yet as selectable options in Laposta."
+msgstr "Voeg verborgen veldwaarden die nog niet bestaan toe als selecteerbare opties in Laposta."
+
+#: laposta-elementor-forms.php:233
+msgid "Hidden fields can be mapped to Laposta multi-select fields. Provide comma separated values in the default value."
+msgstr "Verborgen velden kunnen aan Laposta multi-select velden gekoppeld worden. Gebruik komma's in de standaardwaarde om meerdere opties op te geven."
+
+#: laposta-elementor-forms.php:234
+msgid "Hidden field"
+msgstr "Verborgen veld"
+
+#: laposta-elementor-forms.php:235
 msgid "Loading…"
 msgstr "Bezig met laden…"
 
-#: laposta-elementor-forms.php:225
+#: laposta-elementor-forms.php:236
 msgid "Select a list"
 msgstr "Selecteer een lijst"
 
-#: laposta-elementor-forms.php:226
+#: laposta-elementor-forms.php:237
 msgid "Failed to fetch Laposta lists. Please check your API key."
 msgstr "Het ophalen van Laposta-lijsten is mislukt. Controleer je API-sleutel."
 
-#: laposta-elementor-forms.php:227
+#: laposta-elementor-forms.php:238
 msgid "Failed to fetch Laposta fields."
 msgstr "Het ophalen van Laposta-velden is mislukt."
 
-#: laposta-elementor-forms.php:228 laposta-elementor-forms.php:388
+#: laposta-elementor-forms.php:239 laposta-elementor-forms.php:388
 msgid "No Laposta lists found."
 msgstr "Geen Laposta-lijsten gevonden."
 
-#: laposta-elementor-forms.php:229 laposta-elementor-forms.php:454
+#: laposta-elementor-forms.php:240 laposta-elementor-forms.php:454
 msgid "Unable to fetch Laposta fields for the selected list."
 msgstr "Kan Laposta-velden voor de geselecteerde lijst niet ophalen."
 
@@ -155,14 +171,3 @@ msgstr "Ongeldige Laposta-parameters."
 #: laposta-elementor-forms.php:442
 msgid "Connectivity issue: unable to reach Laposta right now."
 msgstr "Verbindingsprobleem: Laposta is momenteel niet bereikbaar."
-#: includes/class-laposta-action.php:229
-msgid "Unable to communicate with Laposta at the moment."
-msgstr "Kan momenteel geen verbinding maken met Laposta."
-#
-#: includes/class-laposta-action.php:238 includes/class-laposta-action.php:241 includes/class-laposta-action.php:244
-msgid "This email address is already subscribed."
-msgstr "Dit e-mailadres is al geabonneerd."
-
-#: includes/class-laposta-action.php:247
-msgid "An error occurred while subscribing."
-msgstr "Er is een fout opgetreden tijdens het inschrijven."

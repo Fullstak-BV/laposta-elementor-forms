@@ -144,7 +144,6 @@
 			if ( $should_upsert ) {
 				$options['upsert'] = true;
 			}
-
 			$data = [
 				'list_id' => $settings['listid'],
 				'ip' => \ElementorPro\Core\Utils::get_client_ip(),
@@ -158,6 +157,7 @@
 			}
 
 			$append_field_values = [];
+			$fields_requiring_option_sync = [];
 
 			foreach ( $settings as $key => $field ) {
 				if ( stripos( $key, '_laposta_field_' ) === 0 ) {
@@ -166,9 +166,26 @@
 						continue;
 					}
 
+
 					$field_value = $this->get_submitted_field_value( $raw_fields, $field );
 					if ( null === $field_value ) {
 						continue;
+					}
+					$raw_field = isset( $raw_fields[ $field ] ) ? $raw_fields[ $field ] : null;
+					$elementor_field_type = isset( $raw_field['field_type'] ) ? $raw_field['field_type'] : ( isset( $raw_field['type'] ) ? $raw_field['type'] : '' );
+					$is_hidden_elementor_field = ( 'hidden' === $elementor_field_type );
+
+                    $datatype_setting_key = '_laposta_field_datatype_' . $custom_field_name;
+					$field_id_setting_key = '_laposta_field_id_' . $custom_field_name;
+					$allow_new_options_setting_key = '_laposta_field_allow_new_options_' . $custom_field_name;
+
+					$laposta_field_datatype = isset( $settings[ $datatype_setting_key ] ) ? $settings[ $datatype_setting_key ] : '';
+					$laposta_field_id = isset( $settings[ $field_id_setting_key ] ) ? $settings[ $field_id_setting_key ] : '';
+					$allow_new_options = isset( $settings[ $allow_new_options_setting_key ] ) && 'yes' === $settings[ $allow_new_options_setting_key ];
+
+					$is_multi_select_datatype = in_array( $laposta_field_datatype, [ 'select_multiple', 'checkbox', 'multiselect' ], true );
+					if ( $is_multi_select_datatype && $is_hidden_elementor_field ) {
+						$field_value = $this->normalize_hidden_multi_value( $field_value );
 					}
 
 					if ( 'email' === $custom_field_name ) {
@@ -187,7 +204,42 @@
 					if ( $should_append_field ) {
 						$append_field_values[ $custom_field_name ] = (array) $data['custom_fields'][ $custom_field_name ];
 					}
+
+                    if($allow_new_options && empty($laposta_field_id)) {
+                        // get fields for the list to find the field ID by name
+                        $fields_response = laposta_api_call( $settings['laposta_api_key'], 'v2/field?list_id=' . rawurlencode( $settings['listid'] ) );
+                        if ( ! is_wp_error( $fields_response ) && ! empty( $fields_response['data'] ) && is_array( $fields_response['data'] ) ) {
+                            foreach ($fields_response['data'] as $field_info) {
+                                if($field_info['field']['name'] == $custom_field_name) {
+                                    $laposta_field_id = $field_info['field']['field_id'];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if ( $allow_new_options && $is_multi_select_datatype && ! empty( $laposta_field_id ) ) {
+						$field_values_for_sync = $data['custom_fields'][ $custom_field_name ];
+						if ( ! is_array( $field_values_for_sync ) ) {
+							$field_values_for_sync = $this->normalize_hidden_multi_value( $field_values_for_sync );
+						}
+						$field_values_for_sync = array_filter( array_map( 'strval', (array) $field_values_for_sync ), static function ( $value ) {
+							return '' !== trim( $value );
+						} );
+
+						if ( ! empty( $field_values_for_sync ) ) {
+							$fields_requiring_option_sync[] = [
+								'field_id' => $laposta_field_id,
+								'list_id' => $settings['listid'],
+								'values'  => array_values( array_unique( array_map( 'trim', $field_values_for_sync ) ) ),
+							];
+						}
+					}
 				}
+			}
+
+            if ( ! empty( $fields_requiring_option_sync ) ) {
+				$fields_requiring_option_sync = $this->merge_option_sync_requests( $fields_requiring_option_sync );
+				$this->sync_laposta_field_options( $settings['laposta_api_key'], $fields_requiring_option_sync );
 			}
 
 			if ( $should_upsert && ! empty( $append_field_values ) && ! empty( $data['email'] ) ) {
@@ -214,8 +266,9 @@
 					error_log( sprintf( '[Laposta Elementor Forms] upsert append fetch error: %s', $existing_member->get_error_message() ) );
 				}
 			}
-			$response = laposta_api_call( $settings['laposta_api_key'], $path, 'POST', $data );
-			if ( is_wp_error( $response ) ) {
+            $response = laposta_api_call( $settings['laposta_api_key'], $path, 'POST', $data );
+
+            if ( is_wp_error( $response ) ) {
 				$ajax_handler->add_error_message( __( 'Unable to communicate with Laposta at the moment.', 'laposta-elementor-forms' ) );
 				if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
 					error_log( sprintf( '[Laposta Elementor Forms] form submission transport error: %s', $response->get_error_message() ) );
@@ -337,32 +390,219 @@
 		}
 
 		/**
+		 * Merge option sync requests per field.
+		 *
+		 * @param array $requests
+		 * @return array
+		 */
+		private function merge_option_sync_requests( array $requests ) {
+			$merged = [];
+			foreach ( $requests as $request ) {
+				if ( empty( $request['field_id'] ) ) {
+					continue;
+				}
+				$field_id = (string) $request['field_id'];
+				if ( ! isset( $merged[ $field_id ] ) ) {
+					$merged[ $field_id ] = [
+						'field_id' => $field_id,
+						'list_id' => isset( $request['list_id'] ) ? $request['list_id'] : '',
+						'values'  => [],
+					];
+				}
+				if ( ! empty( $request['values'] ) ) {
+					$merged[ $field_id ]['values'] = array_values( array_unique( array_merge( $merged[ $field_id ]['values'], (array) $request['values'] ) ) );
+				}
+			}
+
+			return array_values( $merged );
+		}
+
+		/**
+		 * Ensure Laposta options exist for submitted values.
+		 *
+		 * @param string $api_key
+		 * @param array  $fields
+		 * @return void
+		 */
+		private function sync_laposta_field_options( $api_key, array $fields ) {
+			foreach ( $fields as $field ) {
+				if ( empty( $field['field_id'] ) || empty( $field['list_id'] ) || empty( $field['values'] ) ) {
+					continue;
+				}
+
+				$field_id = (string) $field['field_id'];
+				$list_id  = (string) $field['list_id'];
+				$values   = array_values( array_filter( (array) $field['values'], static function ( $value ) {
+					return '' !== trim( (string) $value );
+				} ) );
+
+				if ( empty( $values ) ) {
+					continue;
+				}
+
+				$endpoint = sprintf( 'v2/field/%s?list_id=%s', rawurlencode( $field_id ), rawurlencode( $list_id ) );
+				$response = laposta_api_call( $api_key, $endpoint );
+				if ( is_wp_error( $response ) || empty( $response['field'] ) ) {
+					if ( is_wp_error( $response ) && defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+						error_log( sprintf( '[Laposta Elementor Forms] option sync fetch error (%s): %s', $field_id, $response->get_error_message() ) );
+					}
+					continue;
+				}
+
+				$existing_options = [];
+				if ( isset( $response['field']['options_full'] ) && is_array( $response['field']['options_full'] ) ) {
+					foreach ( $response['field']['options_full'] as $option ) {
+						if ( ! isset( $option['value'] ) || '' === trim( (string) $option['value'] ) ) {
+							continue;
+						}
+						$existing_options[] = [
+							'id'    => isset( $option['id'] ) ? $option['id'] : null,
+							'value' => (string) $option['value'],
+						];
+					}
+				}
+				if ( empty( $existing_options ) && isset( $response['field']['options'] ) && is_array( $response['field']['options'] ) ) {
+					foreach ( $response['field']['options'] as $option ) {
+						if ( is_array( $option ) && isset( $option['value'] ) ) {
+							$value = (string) $option['value'];
+						} else {
+							$value = (string) $option;
+						}
+						if ( '' === trim( $value ) ) {
+							continue;
+						}
+						$existing_options[] = [
+							'id'    => null,
+							'value' => $value,
+						];
+					}
+				}
+
+				$existing_values = array_map( static function ( $option ) {
+					return isset( $option['value'] ) ? (string) $option['value'] : '';
+				}, $existing_options );
+
+				$missing_values = array_values( array_diff( $values, $existing_values ) );
+				if ( empty( $missing_values ) ) {
+					continue;
+				}
+
+				$options_full_payload = [];
+				foreach ( $existing_options as $option ) {
+					if ( '' === $option['value'] ) {
+						continue;
+					}
+					$payload_option = [
+						'value' => $option['value'],
+					];
+					if ( ! empty( $option['id'] ) ) {
+						$payload_option['id'] = $option['id'];
+					}
+					$options_full_payload[] = $payload_option;
+				}
+
+				foreach ( $missing_values as $new_value ) {
+					$options_full_payload[] = [
+						'value' => (string) $new_value,
+					];
+				}
+
+				if ( empty( $options_full_payload ) ) {
+					continue;
+				}
+
+				$modify_endpoint = sprintf( 'v2/field/%s', rawurlencode( $field_id ) );
+				$payload = [
+					'list_id' => $list_id,
+					'options' => array_map( static function ( $option ) {
+                        return isset( $option['value'] ) ? (string) $option['value'] : '';
+                    }, $options_full_payload ),
+				];
+
+				$modify_response = laposta_api_call( $api_key, $modify_endpoint, 'POST', $payload, [
+					'encoding' => 'form',
+				] );
+
+                if ( is_wp_error( $modify_response ) ) {
+					if ( defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+						error_log( sprintf( '[Laposta Elementor Forms] option sync modify error (%s): %s', $field_id, $modify_response->get_error_message() ) );
+					}
+					continue;
+				}
+
+				if ( isset( $modify_response['error'] ) && defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+					error_log( sprintf( '[Laposta Elementor Forms] option sync modify response error (%s): %s', $field_id, wp_json_encode( $modify_response['error'] ) ) );
+				}
+			}
+		}
+
+		/**
+		 * Convert hidden field values into an array for multi-select usage.
+		 *
+		 * @param mixed $value
+		 * @return array
+		 */
+		private function normalize_hidden_multi_value( $value ) {
+			if ( is_array( $value ) ) {
+				$flattened = [];
+				foreach ( $value as $item ) {
+					if ( is_array( $item ) ) {
+						$flattened = array_merge( $flattened, $this->normalize_hidden_multi_value( $item ) );
+						continue;
+					}
+					if ( is_scalar( $item ) ) {
+						$flattened[] = trim( (string) $item );
+					}
+				}
+				return array_values( array_filter( array_unique( $flattened ), static function ( $entry ) {
+					return '' !== $entry;
+				} ) );
+			}
+
+			if ( is_scalar( $value ) ) {
+				$parts = array_map( 'trim', explode( ',', (string) $value ) );
+				return array_values( array_filter( array_unique( $parts ), static function ( $entry ) {
+					return '' !== $entry;
+				} ) );
+			}
+
+			return [];
+		}
+
+		/**
 		 * Apply mapping to submitted values.
 		 *
 		 * @param mixed $value
 		 * @param array $mapping
 		 * @return mixed
 		 */
-        private function map_field_values($value, $mapping) {
-            if (empty($mapping)) {
-                return $value;
-            }
+		private function map_field_values($value, $mapping) {
+			if (empty($mapping)) {
+				return $value;
+			}
 
-            $apply_mapping = function ($item) use ($mapping) {
-                if (is_scalar($item)) {
-                    $scalar = (string) $item;
-                    if (array_key_exists($scalar, $mapping)) {
-                        return $mapping[$scalar];
-                    }
-                }
+			$apply_mapping = function ($item) use ($mapping) {
+				if (is_scalar($item)) {
+					$scalar = (string) $item;
+					if (array_key_exists($scalar, $mapping)) {
+						$mapped = $mapping[$scalar];
+						if (is_string($mapped) || is_numeric($mapped)) {
+							return trim((string) $mapped);
+						}
 
-                return $item;
-            };
+						return $mapped;
+					}
 
-            if (is_array($value)) {
-                return array_map($apply_mapping, $value);
-            }
+					return trim($scalar);
+				}
 
-            return $apply_mapping($value);
-        }
+				return $item;
+			};
+
+			if (is_array($value)) {
+				return array_map($apply_mapping, $value);
+			}
+
+			return $apply_mapping($value);
+		}
 	}

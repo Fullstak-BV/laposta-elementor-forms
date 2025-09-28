@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: laposta-elementor-forms 2.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-05-30 00:00+0000\n"
+"POT-Creation-Date: 2024-09-09 00:00+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: \n"
 "Language-Team: \n"
@@ -68,59 +68,75 @@ msgstr ""
 msgid "An error occurred while subscribing."
 msgstr ""
 
-#: laposta-elementor-forms.php:216
+#: laposta-elementor-forms.php:223
 msgid "Form option"
 msgstr ""
 
-#: laposta-elementor-forms.php:217
+#: laposta-elementor-forms.php:224
 msgid "Laposta option"
 msgstr ""
 
-#: laposta-elementor-forms.php:218
+#: laposta-elementor-forms.php:225
 msgid "Select…"
 msgstr ""
 
-#: laposta-elementor-forms.php:219
+#: laposta-elementor-forms.php:226
 msgid "Select a form field with options to create a mapping."
 msgstr ""
 
-#: laposta-elementor-forms.php:220
+#: laposta-elementor-forms.php:227
 msgid "This Laposta field has no options."
 msgstr ""
 
-#: laposta-elementor-forms.php:221
+#: laposta-elementor-forms.php:228
 msgid "No additional mapping needed for this field."
 msgstr ""
 
-#: laposta-elementor-forms.php:222
+#: laposta-elementor-forms.php:229
 msgid "Append new selections to existing subscriber (upsert)"
 msgstr ""
 
-#: laposta-elementor-forms.php:223
+#: laposta-elementor-forms.php:230
 msgid "Leave unchecked to overwrite existing selections when the subscriber already exists."
 msgstr ""
 
-#: laposta-elementor-forms.php:224
+#: laposta-elementor-forms.php:231
+msgid "Allow creating new Laposta options"
+msgstr ""
+
+#: laposta-elementor-forms.php:232
+msgid "Add hidden field values that are not present yet as selectable options in Laposta."
+msgstr ""
+
+#: laposta-elementor-forms.php:233
+msgid "Hidden fields can be mapped to Laposta multi-select fields. Provide comma separated values in the default value."
+msgstr ""
+
+#: laposta-elementor-forms.php:234
+msgid "Hidden field"
+msgstr ""
+
+#: laposta-elementor-forms.php:235
 msgid "Loading…"
 msgstr ""
 
-#: laposta-elementor-forms.php:225
+#: laposta-elementor-forms.php:236
 msgid "Select a list"
 msgstr ""
 
-#: laposta-elementor-forms.php:226
+#: laposta-elementor-forms.php:237
 msgid "Failed to fetch Laposta lists. Please check your API key."
 msgstr ""
 
-#: laposta-elementor-forms.php:227
+#: laposta-elementor-forms.php:238
 msgid "Failed to fetch Laposta fields."
 msgstr ""
 
-#: laposta-elementor-forms.php:228
+#: laposta-elementor-forms.php:239
 msgid "No Laposta lists found."
 msgstr ""
 
-#: laposta-elementor-forms.php:229 laposta-elementor-forms.php:454
+#: laposta-elementor-forms.php:240 laposta-elementor-forms.php:454
 msgid "Unable to fetch Laposta fields for the selected list."
 msgstr ""
 

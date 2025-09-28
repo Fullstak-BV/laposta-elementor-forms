@@ -30,6 +30,10 @@ window.addEventListener("elementor:loaded", () => {
         noMappingNeeded: labels.noMappingNeeded || 'Geen extra mapping nodig voor dit veld.',
         appendLabel: labels.appendLabel || 'Append selections to existing subscriber (upsert)',
         appendHelp: labels.appendHelp || '',
+        allowNewOptionsLabel: labels.allowNewOptionsLabel || 'Allow creating new Laposta options',
+        allowNewOptionsHelp: labels.allowNewOptionsHelp || 'Add hidden field values that are not present yet as selectable options in Laposta.',
+        hiddenFieldInfo: labels.hiddenFieldInfo || 'Hidden fields can be mapped to Laposta multi-select fields. Provide comma separated values in the default value.',
+        hiddenFieldLabelPrefix: labels.hiddenFieldLabelPrefix || 'Hidden field',
         loadingLists: labels.loadingLists || 'Loading…',
         selectBoard: labels.selectBoard || 'Select a Board',
         listFetchError: labels.listFetchError || 'Failed to fetch boards. Please check your API key.',
@@ -229,6 +233,22 @@ window.addEventListener("elementor:loaded", () => {
                 }));
             }
         }
+        const fieldType = formFieldModel.get('field_type') || formFieldModel.get('type');
+        if ((!options || !options.length) && 'hidden' === fieldType) {
+            const defaultValue = formFieldModel.get('default_value') !== undefined ? formFieldModel.get('default_value') : formFieldModel.get('field_value');
+            if (typeof defaultValue === 'string' && defaultValue.trim() !== '') {
+                const hiddenOptions = defaultValue.split(',').map(option => {
+                    const trimmed = option.trim();
+                    if (!trimmed) {
+                        return null;
+                    }
+                    return {value: trimmed, label: trimmed};
+                }).filter(Boolean);
+                if (hiddenOptions.length) {
+                    options = hiddenOptions;
+                }
+            }
+        }
         return options;
     };
 
@@ -316,7 +336,12 @@ window.addEventListener("elementor:loaded", () => {
             '.laposta-mapping-row select{flex:1;min-height:32px;}' +
             '.laposta-mapping-append{margin-top:8px;display:flex;align-items:center;gap:6px;}' +
             '.laposta-mapping-append input{margin:0;}' +
-            '.laposta-mapping-append-help{margin:4px 0 0;font-size:12px;color:#666;}';
+            '.laposta-mapping-append-help{margin:4px 0 0;font-size:12px;color:#666;}' +
+            '.laposta-mapping-info{margin-bottom:8px;font-size:12px;color:#666;}' +
+            '.laposta-mapping-new-options-container{margin-top:12px;}' +
+            '.laposta-mapping-new-options{display:flex;align-items:center;gap:6px;}' +
+            '.laposta-mapping-new-options input{margin:0;}' +
+            '.laposta-mapping-new-options-help{margin:4px 0 0;font-size:12px;color:#666;}';
         document.head.appendChild(styleElement);
     };
 
@@ -397,10 +422,13 @@ window.addEventListener("elementor:loaded", () => {
         }
 
         const selectedFormField = settingsModel.get(control.selectControlName);
+        const formFieldModel = getFormFieldModel(selectedFormField);
         const formOptions = getFormFieldOptions(selectedFormField);
-        if (!formOptions.length) {
-            container.html('<em>' + escapeHtml(text.noFormOptions) + '</em>');
-            debugLog('No form options present for selected Elementor field', fieldKey, selectedFormField);
+        const formFieldType = formFieldModel && (formFieldModel.get('field_type') || formFieldModel.get('type'));
+        const isHiddenField = formFieldType === 'hidden';
+        const shouldShowHiddenInfo = control.isMulti && isHiddenField;
+        if (!formOptions.length && !shouldShowHiddenInfo) {
+            container.empty();
             return;
         }
 
@@ -434,49 +462,59 @@ window.addEventListener("elementor:loaded", () => {
             }).join('');
         };
 
-        const rowsHtml = control.lapostaOptions.map(option => {
-            const lapostaValue = option.value !== undefined ? option.value : option.label;
-            const selectedFormOption = lapostaToForm[String(lapostaValue)] || '';
-            const lapostaSelectHtml = '<select class="laposta-mapping-select laposta-mapping-select-laposta" data-laposta-field="' + escapeHtml(fieldKey) + '" data-laposta-option="' + escapeHtml(lapostaValue) + '" disabled aria-disabled="true">' + lapostaSelectBase(lapostaValue) + '</select>';
-            const formSelectHtml = '<select class="laposta-mapping-select laposta-mapping-select-form" data-laposta-field="' + escapeHtml(fieldKey) + '" data-laposta-option="' + escapeHtml(lapostaValue) + '">' + formOptionsHtml + '</select>';
-
-            return '<div class="laposta-mapping-row">' + lapostaSelectHtml + formSelectHtml + '</div>';
-        }).join('');
-
-        container.html('<div class="laposta-mapping-header"><span>' + escapeHtml(text.lapostaOption) + '</span><span>' + escapeHtml(text.formOption) + '</span></div>' + rowsHtml);
-
-        container.find('.laposta-mapping-select-form').each(function () {
-            const select = jQuery(this);
-            const lapostaValue = String(select.data('laposta-option'));
-            const mappedFormValue = lapostaToForm[lapostaValue] || '';
-            select.val(mappedFormValue);
-        });
-
         container.off('change', '.laposta-mapping-select-form');
-        container.on('change', '.laposta-mapping-select-form', function () {
-            const select = jQuery(this);
-            const lapostaValue = String(select.data('laposta-option'));
-            const selectedFormValueRaw = select.val();
-            const selectedFormValue = selectedFormValueRaw ? String(selectedFormValueRaw) : '';
-            const updatedMapping = Object.assign({}, readMapping(fieldKey));
 
-            Object.keys(updatedMapping).forEach(formValue => {
-                if (String(updatedMapping[formValue]) === lapostaValue || formValue === selectedFormValue) {
-                    delete updatedMapping[formValue];
-                }
+        if (shouldShowHiddenInfo) {
+            container.html('<div class="laposta-mapping-info laposta-mapping-info-hidden">' + escapeHtml(text.hiddenFieldInfo) + '</div>');
+            if (Object.keys(mappingData).length) {
+                writeMapping(fieldKey, {});
+            }
+        } else {
+            const rowsHtml = control.lapostaOptions.map(option => {
+                const lapostaValue = option.value !== undefined ? option.value : option.label;
+                const selectedFormOption = lapostaToForm[String(lapostaValue)] || '';
+                const lapostaSelectHtml = '<select class="laposta-mapping-select laposta-mapping-select-laposta" data-laposta-field="' + escapeHtml(fieldKey) + '" data-laposta-option="' + escapeHtml(lapostaValue) + '" disabled aria-disabled="true">' + lapostaSelectBase(lapostaValue) + '</select>';
+                const formSelectHtml = '<select class="laposta-mapping-select laposta-mapping-select-form" data-laposta-field="' + escapeHtml(fieldKey) + '" data-laposta-option="' + escapeHtml(lapostaValue) + '">' + formOptionsHtml + '</select>';
+
+                return '<div class="laposta-mapping-row">' + lapostaSelectHtml + formSelectHtml + '</div>';
+            }).join('');
+
+            container.html('<div class="laposta-mapping-header"><span>' + escapeHtml(text.lapostaOption) + '</span><span>' + escapeHtml(text.formOption) + '</span></div>' + rowsHtml);
+
+            container.find('.laposta-mapping-select-form').each(function () {
+                const select = jQuery(this);
+                const lapostaValue = String(select.data('laposta-option'));
+                const mappedFormValue = lapostaToForm[lapostaValue] || '';
+                select.val(mappedFormValue);
             });
 
-            if (selectedFormValue) {
-                updatedMapping[selectedFormValue] = lapostaValue;
-            }
+            container.on('change', '.laposta-mapping-select-form', function () {
+                const select = jQuery(this);
+                const lapostaValue = String(select.data('laposta-option'));
+                const selectedFormValueRaw = select.val();
+                const selectedFormValue = selectedFormValueRaw ? String(selectedFormValueRaw) : '';
+                const updatedMapping = Object.assign({}, readMapping(fieldKey));
 
-            writeMapping(fieldKey, updatedMapping);
-            bounceUpsertControl();
-        });
+                Object.keys(updatedMapping).forEach(formValue => {
+                    if (String(updatedMapping[formValue]) === lapostaValue || formValue === selectedFormValue) {
+                        delete updatedMapping[formValue];
+                    }
+                });
+
+                if (selectedFormValue) {
+                    updatedMapping[selectedFormValue] = lapostaValue;
+                }
+
+                writeMapping(fieldKey, updatedMapping);
+                bounceUpsertControl();
+            });
+        }
 
         container.off('change', '.laposta-mapping-append-checkbox');
+        container.off('change', '.laposta-mapping-new-options-checkbox');
         container.find('.laposta-mapping-append').remove();
         container.find('.laposta-mapping-append-help').remove();
+        container.find('.laposta-mapping-new-options-container').remove();
 
         const appendControlName = control.appendControlName;
         const upsertValue = settingsModel && settingsModel.get ? settingsModel.get('upsert') : null;
@@ -495,6 +533,24 @@ window.addEventListener("elementor:loaded", () => {
                 const newValue = isChecked ? 'yes' : 'no';
                 if (settingsModel.get(appendControlName) !== newValue) {
                     settingsModel.set(appendControlName, newValue);
+                    bounceUpsertControl();
+                }
+            });
+        }
+
+        const allowNewOptionsControlName = control.allowNewOptionsControlName;
+        if (shouldShowHiddenInfo && allowNewOptionsControlName) {
+            const currentAllowValue = settingsModel.get(allowNewOptionsControlName) || 'no';
+            const allowLabel = escapeHtml(text.allowNewOptionsLabel || 'Allow creating new Laposta options');
+            const allowHelp = text.allowNewOptionsHelp ? escapeHtml(text.allowNewOptionsHelp) : '';
+            const allowHtml = '<div class="laposta-mapping-new-options-container"><label class="laposta-mapping-new-options"><input type="checkbox" class="laposta-mapping-new-options-checkbox" data-laposta-field="' + escapeHtml(fieldKey) + '"' + (currentAllowValue === 'yes' ? ' checked' : '') + '> ' + allowLabel + '</label>' + (allowHelp ? '<div class="laposta-mapping-new-options-help">' + allowHelp + '</div>' : '') + '</div>';
+            container.append(allowHtml);
+            container.on('change', '.laposta-mapping-new-options-checkbox', function () {
+                const checkbox = jQuery(this);
+                const isChecked = checkbox.is(':checked');
+                const newValue = isChecked ? 'yes' : 'no';
+                if (settingsModel.get(allowNewOptionsControlName) !== newValue) {
+                    settingsModel.set(allowNewOptionsControlName, newValue);
                     bounceUpsertControl();
                 }
             });
@@ -524,6 +580,7 @@ window.addEventListener("elementor:loaded", () => {
         if (control.container && control.container.length) {
             control.container.off('change', '.laposta-mapping-select-form');
             control.container.off('change', '.laposta-mapping-append-checkbox');
+            control.container.off('change', '.laposta-mapping-new-options-checkbox');
             control.container.remove();
         }
         control.container = null;
@@ -569,16 +626,32 @@ window.addEventListener("elementor:loaded", () => {
         let settingsModel = editedModel.get('settings'),
             fieldModels = settingsModel.get('form_fields').where({
                 // field_type: 'email'
-            }).filter((model) => model.attributes.field_label !== '');
+            }).filter((model) => {
+                const fieldType = model.get('field_type') || model.get('type');
+                if ('hidden' === fieldType) {
+                    return true;
+                }
+                return model.attributes.field_label !== '';
+            });
 
         const defaultField = {
             id: '',
             label: text.selectPrompt || 'Select field'
         }
         inputFields = _.map(fieldModels, function (model) {
+            const fieldType = model.get('field_type') || model.get('type');
+            const customId = model.get('custom_id');
+            let label = model.get('field_label');
+            if (!label) {
+                if ('hidden' === fieldType) {
+                    label = (text.hiddenFieldLabelPrefix || 'Hidden field') + (customId ? ' (' + customId + ')' : '');
+                } else {
+                    label = customId || '';
+                }
+            }
             return {
-                id: model.get('custom_id'),
-                label: model.get('field_label')
+                id: customId,
+                label: label || customId || ''
             };
         });
         inputFields.unshift(defaultField);
@@ -743,6 +816,9 @@ window.addEventListener("elementor:loaded", () => {
                     const lapostaOptions = normalizeLapostaOptions(field);
                     const isMultiSelect = field.datatype === 'select_multiple' || field.datatype_display === 'checkbox' || field.datatype_display === 'multiselect' || field.datatype === 'checkbox';
                     const appendControlName = '_laposta_field_append_' + lapostaFieldKey;
+                    const allowNewOptionsControlName = '_laposta_field_allow_new_options_' + lapostaFieldKey;
+                    const datatypeControlName = '_laposta_field_datatype_' + lapostaFieldKey;
+                    const fieldIdControlName = '_laposta_field_id_' + lapostaFieldKey;
                     activeKeys.push(lapostaFieldKey);
                     if (isDebug) {
                         debugLog('Processing Laposta field', lapostaFieldKey, lapostaOptions);
@@ -830,6 +906,83 @@ window.addEventListener("elementor:loaded", () => {
                         }
                     }
 
+                    let allowNewOptionsControl = null;
+                    if (isMultiSelect && lapostaOptions.length) {
+                        allowNewOptionsControl = editor.collection.findWhere({name: allowNewOptionsControlName});
+                        const defaultAllowValue = settingsModel && settingsModel.attributes ? (settingsModel.attributes[allowNewOptionsControlName] || 'no') : 'no';
+                        if (!allowNewOptionsControl) {
+                            editor.collection.push({
+                                name: allowNewOptionsControlName,
+                                label: '',
+                                type: 'text',
+                                input_type: 'hidden',
+                                section: 'section_laposta',
+                                default: '',
+                                render_type: 'none',
+                                tab: 'content',
+                                condition: {
+                                    'submit_actions': 'laposta'
+                                },
+                            }, {at: lastField + 1});
+                            lastField = editor.collection.findIndex(c => c.attributes.section === 'section_laposta' && c.attributes.name === allowNewOptionsControlName);
+                            allowNewOptionsControl = editor.collection.findWhere({name: allowNewOptionsControlName});
+                            if (settingsModel && settingsModel.set) {
+                                settingsModel.set(allowNewOptionsControlName, defaultAllowValue);
+                            }
+                        }
+                    } else {
+                        const staleAllowNew = editor.collection.findWhere({name: allowNewOptionsControlName});
+                        if (staleAllowNew) {
+                            editor.collection.remove(staleAllowNew);
+                        }
+                    }
+
+                    const datatypeControl = editor.collection.findWhere({name: datatypeControlName});
+                    if (!datatypeControl) {
+                        editor.collection.push({
+                            name: datatypeControlName,
+                            label: '',
+                            type: 'text',
+                            input_type: 'hidden',
+                            section: 'section_laposta',
+                            default: '',
+                            render_type: 'none',
+                            tab: 'content',
+                            condition: {
+                                'submit_actions': 'laposta'
+                            },
+                        }, {at: lastField + 1});
+                        lastField = editor.collection.findIndex(c => c.attributes.section === 'section_laposta' && c.attributes.name === datatypeControlName);
+                    }
+                    const fieldIdControl = editor.collection.findWhere({name: fieldIdControlName});
+                    if (!fieldIdControl) {
+                        editor.collection.push({
+                            name: fieldIdControlName,
+                            label: '',
+                            type: 'text',
+                            input_type: 'hidden',
+                            section: 'section_laposta',
+                            default: '',
+                            render_type: 'none',
+                            tab: 'content',
+                            condition: {
+                                'submit_actions': 'laposta'
+                            },
+                        }, {at: lastField + 1});
+                        lastField = editor.collection.findIndex(c => c.attributes.section === 'section_laposta' && c.attributes.name === fieldIdControlName);
+                    }
+
+                    if (settingsModel && settingsModel.set) {
+                        const newDatatypeValue = field.datatype || '';
+                        const newFieldIdValue = field.id || '';
+                        if (settingsModel.get(datatypeControlName) !== newDatatypeValue) {
+                            settingsModel.set(datatypeControlName, newDatatypeValue);
+                        }
+                        if (settingsModel.get(fieldIdControlName) !== newFieldIdValue) {
+                            settingsModel.set(fieldIdControlName, newFieldIdValue);
+                        }
+                    }
+
                     fieldControls[lapostaFieldKey] = fieldControls[lapostaFieldKey] || {};
                     fieldControls[lapostaFieldKey].select = selectControl;
                     fieldControls[lapostaFieldKey].selectControlName = selectControlName;
@@ -838,6 +991,9 @@ window.addEventListener("elementor:loaded", () => {
                     fieldControls[lapostaFieldKey].lapostaOptions = lapostaOptions;
                     fieldControls[lapostaFieldKey].isMulti = isMultiSelect && lapostaOptions.length > 0;
                     fieldControls[lapostaFieldKey].appendControlName = appendControl ? appendControlName : null;
+                    fieldControls[lapostaFieldKey].allowNewOptionsControlName = allowNewOptionsControl ? allowNewOptionsControlName : null;
+                    fieldControls[lapostaFieldKey].datatypeControlName = datatypeControlName;
+                    fieldControls[lapostaFieldKey].fieldIdControlName = fieldIdControlName;
 
                     if (lapostaOptions.length) {
                         attachMappingListeners(lapostaFieldKey);
@@ -859,6 +1015,24 @@ window.addEventListener("elementor:loaded", () => {
                             const appendControl = editor.collection.findWhere({name: fieldControls[fieldKey].appendControlName});
                             if (appendControl) {
                                 editor.collection.remove(appendControl);
+                            }
+                        }
+                        if (fieldControls[fieldKey].allowNewOptionsControlName) {
+                            const allowControl = editor.collection.findWhere({name: fieldControls[fieldKey].allowNewOptionsControlName});
+                            if (allowControl) {
+                                editor.collection.remove(allowControl);
+                            }
+                        }
+                        if (fieldControls[fieldKey].datatypeControlName) {
+                            const datatypeControl = editor.collection.findWhere({name: fieldControls[fieldKey].datatypeControlName});
+                            if (datatypeControl) {
+                                editor.collection.remove(datatypeControl);
+                            }
+                        }
+                        if (fieldControls[fieldKey].fieldIdControlName) {
+                            const fieldIdControl = editor.collection.findWhere({name: fieldControls[fieldKey].fieldIdControlName});
+                            if (fieldIdControl) {
+                                editor.collection.remove(fieldIdControl);
                             }
                         }
                         delete fieldControls[fieldKey];

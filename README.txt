@@ -2,7 +2,7 @@
 Contributors:
 Donate link: https://github.com/breakerh
 Tags: laposta, elementor, forms
-Version: 2.1.0
+Version: 2.2.1
 Requires at least: 3.0.1
 Tested up to: 3.4
 Stable tag: 4.3
@@ -23,6 +23,15 @@ Simple plugin that let's you use Elementor forms to register visitors to your La
 4. In the form widget settings, go to the actions after submit section and add the Laposta action
 
 == Changelog ==
+
+= 2.2.1 =
+* Hidden Elementor fields can now be linked to Laposta multi-selects via a dedicated help prompt, zonder overbodige mapping-rijen.
+* Nieuwe checkbox per Laposta multi-select om verborgen standaardwaarden automatisch als nieuwe Laposta-opties aan te maken.
+* Laposta-metadata voor velden (datatype, field id, append/new-option) wordt nu in Elementor opgeslagen zodat de PHP-actie erop kan vertrouwen.
+* `laposta_api_call()` ondersteunt verschillende encodings en stuurt Laposta field-modify verzoeken voortaan form-encoded.
+
+= 2.2.0 =
+* Upsert-functie uitgebreid met de mogelijkheid om multi-select keuzes samen te voegen met bestaande Laposta-voorkeuren.
 
 = 2.1.0 =
 * Added a visual option-to-option mapping interface for Laposta select and multi-select fields.

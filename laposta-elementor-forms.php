@@ -10,7 +10,7 @@
  * Plugin Name:       Laposta Elementor Forms Integration
  * Plugin URI:        https://fullstak.nl/
  * Description:       Simple plugin that let's you use Elementor forms to register visitors to your Laposta relation list.
- * Version:           2.1.0
+ * Version:           2.2.1
  * Author:            Bram Hammer
  * Author URI:        https://fullstak.nl//
  * License:           GPL-2.0+
@@ -58,7 +58,7 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
          *
          * @var string
          */
-        private $version = '2.1.0';
+        private $version = '2.2.1';
 
         /**
          * @var bool Debug mode
@@ -228,6 +228,10 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
                         'noMappingNeeded' => __( 'No additional mapping needed for this field.', 'laposta-elementor-forms' ),
                         'appendLabel' => __( 'Append new selections to existing subscriber (upsert)', 'laposta-elementor-forms' ),
                         'appendHelp' => __( 'Leave unchecked to overwrite existing selections when the subscriber already exists.', 'laposta-elementor-forms' ),
+                        'allowNewOptionsLabel' => __( 'Allow creating new Laposta options', 'laposta-elementor-forms' ),
+                        'allowNewOptionsHelp' => __( 'Add hidden field values that are not present yet as selectable options in Laposta.', 'laposta-elementor-forms' ),
+                        'hiddenFieldInfo' => __( 'Hidden fields can be mapped to Laposta multi-select fields. Provide comma separated values in the default value.', 'laposta-elementor-forms' ),
+                        'hiddenFieldLabelPrefix' => __( 'Hidden field', 'laposta-elementor-forms' ),
                         'loadingLists' => __( 'Loading…', 'laposta-elementor-forms' ),
                         'selectBoard' => __( 'Select a list', 'laposta-elementor-forms' ),
                         'listFetchError' => __( 'Failed to fetch Laposta lists. Please check your API key.', 'laposta-elementor-forms' ),
@@ -339,7 +343,7 @@ laposta_elementor_forms();
 add_action('wp_ajax_fetch_laposta_lists', 'fetch_laposta_lists');
 add_action('wp_ajax_nopriv_fetch_laposta_lists', 'fetch_laposta_lists');
 
-function laposta_api_call( $api_key, $path, $method = 'GET', $data = [] ) {
+function laposta_api_call( $api_key, $path, $method = 'GET', $data = [], $args = [] ) {
     $api_key = sanitize_text_field( $api_key );
     $url     = rtrim( LAPOSTA_BASE, '/' ) . '/' . ltrim( $path, '/' );
 
@@ -351,16 +355,37 @@ function laposta_api_call( $api_key, $path, $method = 'GET', $data = [] ) {
         'timeout' => 15,
     ];
 
+    $encoding = 'json';
+    if ( isset( $args['encoding'] ) ) {
+        $encoding = strtolower( $args['encoding'] );
+        unset( $args['encoding'] );
+    }
+
+    if ( isset( $args['headers'] ) && is_array( $args['headers'] ) ) {
+        $arguments['headers'] = array_merge( $arguments['headers'], $args['headers'] );
+        unset( $args['headers'] );
+    }
+
+    if ( ! empty( $args ) ) {
+        $arguments = array_merge( $arguments, $args );
+    }
+
     if ( 'POST' === strtoupper( $method ) ) {
-        $arguments['headers']['Content-Type'] = 'application/json; charset=utf-8';
-        $encoded_body                         = wp_json_encode( $data );
+        if ( 'form' === $encoding ) {
+            $arguments['headers']['Content-Type'] = 'application/x-www-form-urlencoded';
+            $arguments['body'] = $data;
+            $response          = wp_remote_post( $url, $arguments );
+        } else {
+            $arguments['headers']['Content-Type'] = 'application/json; charset=utf-8';
+            $encoded_body                         = wp_json_encode( $data );
 
-        if ( false === $encoded_body ) {
-            return new WP_Error( 'laposta_encode_error', 'Error encoding request body.' );
+            if ( false === $encoded_body ) {
+                return new WP_Error( 'laposta_encode_error', 'Error encoding request body.' );
+            }
+
+            $arguments['body'] = $encoded_body;
+            $response          = wp_remote_post( $url, $arguments );
         }
-
-        $arguments['body'] = $encoded_body;
-        $response                             = wp_remote_post( $url, $arguments );
     } else {
         $response = wp_remote_get( $url, $arguments );
     }
