@@ -10,7 +10,7 @@
  * Plugin Name:       Laposta Elementor Forms Integration
  * Plugin URI:        https://fullstak.nl/
  * Description:       Simple plugin that let's you use Elementor forms to register visitors to your Laposta relation list.
- * Version:           2.2.1
+ * Version:           2.2.2
  * Author:            Bram Hammer
  * Author URI:        https://fullstak.nl//
  * License:           GPL-2.0+
@@ -58,7 +58,7 @@ if ( ! class_exists( 'Laposta_Elementor_Forms' ) ) {
          *
          * @var string
          */
-        private $version = '2.2.1';
+        private $version = '2.2.2';
 
         /**
          * @var bool Debug mode
@@ -398,6 +398,7 @@ function laposta_api_call( $api_key, $path, $method = 'GET', $data = [], $args =
     $decoded   = json_decode( $body, true );
     $json_error = json_last_error();
 
+    //var_dump($url,$decoded,$json_error);
     if ( JSON_ERROR_NONE !== $json_error ) {
         return new WP_Error( 'laposta_invalid_json', sprintf( 'Error decoding response: %s', json_last_error_msg() ) );
     }

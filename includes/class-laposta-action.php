@@ -1,10 +1,10 @@
 <?php
-	
+
 	if ( ! defined( 'ABSPATH' ) ) {
 		exit; // Exit if accessed directly.
 	}
 
-	
+
 	/**
 	 * Elementor form laposta action.
 	 *
@@ -25,7 +25,7 @@
 		public function get_name() {
 			return 'laposta';
 		}
-		
+
 		/**
 		 * Get action label.
 		 *
@@ -38,7 +38,7 @@
 		public function get_label() {
 			return __( 'Laposta', 'laposta-elementor-forms' );
 		}
-		
+
 		/**
 		 * Register action controls.
 		 *
@@ -58,7 +58,7 @@
 					],
 				]
 			);
-			
+
 			$widget->add_control(
 				'laposta_api_key',
 				[
@@ -119,7 +119,7 @@
 
 			$widget->end_controls_section();
 		}
-		
+
 		/**
 		 * Run action.
 		 *
@@ -133,11 +133,11 @@
 		public function run( $record, $ajax_handler ) {
 			$settings = $record->get( 'form_settings' );
 			$path = 'v2/member';
-			
+
 			if ( empty( $settings['laposta_api_key'] ) || empty( $settings['listid'] ) ) {
 				return;
 			}
-			
+
 			$raw_fields = $record->get( 'fields' );
 			$should_upsert = isset( $settings['upsert'] ) ? ( 'yes' === $settings['upsert'] ) : true;
 			$options = [];
@@ -179,15 +179,14 @@
 					$field_id_setting_key = '_laposta_field_id_' . $custom_field_name;
 					$allow_new_options_setting_key = '_laposta_field_allow_new_options_' . $custom_field_name;
 
-					$laposta_field_datatype = isset( $settings[ $datatype_setting_key ] ) ? $settings[ $datatype_setting_key ] : '';
-					$laposta_field_id = isset( $settings[ $field_id_setting_key ] ) ? $settings[ $field_id_setting_key ] : '';
+					$laposta_field_datatype = $settings[$datatype_setting_key] ?? '';
+					$laposta_field_id = $settings[$field_id_setting_key] ?? '';
 					$allow_new_options = isset( $settings[ $allow_new_options_setting_key ] ) && 'yes' === $settings[ $allow_new_options_setting_key ];
 
 					$is_multi_select_datatype = in_array( $laposta_field_datatype, [ 'select_multiple', 'checkbox', 'multiselect' ], true );
 					if ( $is_multi_select_datatype && $is_hidden_elementor_field ) {
 						$field_value = $this->normalize_hidden_multi_value( $field_value );
 					}
-
 					if ( 'email' === $custom_field_name ) {
 						$data['email'] = $field_value;
 						continue;
@@ -205,12 +204,13 @@
 						$append_field_values[ $custom_field_name ] = (array) $data['custom_fields'][ $custom_field_name ];
 					}
 
+
                     if($allow_new_options && empty($laposta_field_id)) {
                         // get fields for the list to find the field ID by name
                         $fields_response = laposta_api_call( $settings['laposta_api_key'], 'v2/field?list_id=' . rawurlencode( $settings['listid'] ) );
                         if ( ! is_wp_error( $fields_response ) && ! empty( $fields_response['data'] ) && is_array( $fields_response['data'] ) ) {
                             foreach ($fields_response['data'] as $field_info) {
-                                if($field_info['field']['name'] == $custom_field_name) {
+                                if(strtolower($field_info['field']['name']) == strtolower($custom_field_name)) {
                                     $laposta_field_id = $field_info['field']['field_id'];
                                     break;
                                 }
@@ -245,7 +245,8 @@
 			if ( $should_upsert && ! empty( $append_field_values ) && ! empty( $data['email'] ) ) {
 				$member_endpoint = sprintf( 'v2/member/%s?list_id=%s', rawurlencode( $data['email'] ), rawurlencode( $settings['listid'] ) );
 				$existing_member = laposta_api_call( $settings['laposta_api_key'], $member_endpoint );
-				if ( ! is_wp_error( $existing_member ) && ! empty( $existing_member['member']['custom_fields'] ) ) {
+                $is_error = isset($existing_member['error']['code']);
+				if ( ! $is_error && ! empty( $existing_member['member']['custom_fields'] ) ) {
 					$existing_custom_fields = $existing_member['member']['custom_fields'];
 					foreach ( $append_field_values as $field_key => $new_values ) {
 						$existing_values = [];
@@ -263,6 +264,9 @@
 						$data['custom_fields'][ $field_key ] = $merged_values;
 					}
 				} elseif ( is_wp_error( $existing_member ) && defined( 'LAPOSTA_DEBUG' ) && LAPOSTA_DEBUG ) {
+                    if($is_error && $existing_member['error']['code'] == 202) {
+                        $data['custom_fields'] = $append_field_values;
+                    }
 					error_log( sprintf( '[Laposta Elementor Forms] upsert append fetch error: %s', $existing_member->get_error_message() ) );
 				}
 			}
@@ -292,7 +296,7 @@
 				endswitch;
 			}
 		}
-		
+
 		/**
 		 * On export.
 		 *

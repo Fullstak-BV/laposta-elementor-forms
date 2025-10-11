@@ -2,7 +2,7 @@
 Contributors:
 Donate link: https://github.com/breakerh
 Tags: laposta, elementor, forms
-Version: 2.2.1
+Version: 2.2.2
 Requires at least: 3.0.1
 Tested up to: 3.4
 Stable tag: 4.3
@@ -23,6 +23,9 @@ Simple plugin that let's you use Elementor forms to register visitors to your La
 4. In the form widget settings, go to the actions after submit section and add the Laposta action
 
 == Changelog ==
+
+= 2.2.2 =
+* Laposte fields didn't get mapped correctly when the field was hidden in Elementor. Fixed.
 
 = 2.2.1 =
 * Hidden Elementor fields can now be linked to Laposta multi-selects via a dedicated help prompt, zonder overbodige mapping-rijen.
